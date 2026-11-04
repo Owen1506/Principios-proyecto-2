@@ -60,6 +60,10 @@ public class BCP {
     private LocalDateTime horaInicio;
     private LocalDateTime horaFinal;
     private int tiempoCPU;
+
+    // Datos de planificación pendientes de utilizar (segundos simulados).
+    private int rafaga;
+    private int tiempoLlegada;
     private String motivoError = "";
 
     public String getMotivoError() { return motivoError; }

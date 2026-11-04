@@ -34,7 +34,7 @@ public class Instruccion {
     private List<Integer> parametros; // Para operaciones como PARAM
     private String textoOriginal;
     private String texto;
-    private int peso;
+    private final int peso = 1;
 
     /**
      * Crea una nueva instrucción con todos los datos necesarios
@@ -48,9 +48,8 @@ public class Instruccion {
      * @param parametros lista de parámetros numéricos; puede ser null si no aplica
      * @param textoOriginal línea ASM original de la instrucción
      * @param texto contenido de un operando de texto o null si no aplica
-     * @param peso cantidad de ticks necesarios para ejecutar la instrucción
      */
-    public Instruccion(String operacion,String registro,String registro2,String servicio,Integer valor,List<Integer> parametros,String textoOriginal,String texto, int peso) {
+    public Instruccion(String operacion,String registro,String registro2,String servicio,Integer valor,List<Integer> parametros,String textoOriginal,String texto) {
         this.operacion = operacion;
         this.registro = registro;
         this.registro2 = registro2;
@@ -59,7 +58,6 @@ public class Instruccion {
         this.parametros = parametros;
         this.textoOriginal = textoOriginal;
         this.texto = texto;
-        this.peso = peso;
     }
 
     /**

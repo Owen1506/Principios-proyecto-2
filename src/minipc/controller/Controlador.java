@@ -13,7 +13,7 @@ import java.nio.file.Path;
 
 import minipc.services.Despachador;
 import minipc.services.Executor;
-import minipc.services.FCFS;
+import minipc.services.planificadordeProcesos;
 import minipc.services.GestorInterrupciones;
 import minipc.services.GestorProcesos;
 import minipc.services.GestorMemoriaVirtual;
@@ -38,15 +38,14 @@ public class Controlador {
 
     private GestorProcesos gestorProcesos;
     private GestorMemoriaVirtual gestorMemoriaVirtual;
-    private FCFS fcfs;
+    private planificadordeProcesos planificador;
     private Despachador despachador;
     private SistemaArchivos sistemaArchivos;
     private GestorInterrupciones gestorInterrupciones;
     private Executor executor;
 
-    // Control de la instrucción que está consumiendo ticks de CPU.
+    // Instrucción correspondiente al segundo simulado actual.
     private Instruccion instruccionActual;
-    private int ticksRestantes;
     private Configuracion configuracion;
     private final List<String> erroresEjecucion = new ArrayList<>();
 
@@ -75,17 +74,13 @@ public class Controlador {
                 : new GestorProcesos(memoria, configuracion);
         this.gestorMemoriaVirtual = new GestorMemoriaVirtual(memoria, almacenamiento, gestorProcesos);
         String algoritmo = configuracion == null ? "FCFS" : configuracion.getAlgoritmo();
-        this.fcfs = switch (algoritmo) {
-            case "FCFS" -> new FCFS(gestorProcesos);
-            default -> throw new IllegalArgumentException("Algoritmo no implementado: " + algoritmo);
-        };
-        this.despachador = new Despachador(cpu, gestorProcesos, fcfs);
+        this.planificador = new planificadordeProcesos(algoritmo, gestorProcesos);
+        this.despachador = new Despachador(cpu, gestorProcesos, planificador);
         this.sistemaArchivos = new SistemaArchivos(almacenamiento, gestorProcesos);
         this.gestorInterrupciones = new GestorInterrupciones(cpu, gestorProcesos, despachador, sistemaArchivos);
         this.executor = new Executor(cpu, gestorProcesos, gestorInterrupciones);
 
         this.instruccionActual = null;
-        this.ticksRestantes = 0;
     }
 
     /**
@@ -200,7 +195,7 @@ public class Controlador {
 
             intentarReactivarSuspendidos();
 
-            if (!fcfs.hayProcesosPreparados()) {
+            if (!planificador.hayProcesosPreparados()) {
                 return;
             }
 
@@ -234,8 +229,7 @@ public class Controlador {
         /*
          * FETCH.
          *
-         * Solo se obtiene una nueva instrucción cuando no existe
-         * otra consumiendo ticks.
+         * Se obtiene la instrucción que se ejecutará en este segundo.
          */
         if (instruccionActual == null) {
 
@@ -247,33 +241,11 @@ public class Controlador {
             }
 
             cpu.setIR(instruccionActual.getTextoOriginal());
-            ticksRestantes = instruccionActual.getPeso();
         }
 
-        /*
-         * Una instrucción con peso mayor a cero consume un segundo
-         * de CPU por cada clic.
-         */
-        if (instruccionActual.getPeso() > 0) {
+        // Cada instrucción consume exactamente un segundo de CPU.
+        gestorProcesos.incrementarTiempoCPU();
 
-            gestorProcesos.incrementarTiempoCPU();
-            ticksRestantes--;
-
-            /*
-             * Todavía no ha consumido todo su peso.
-             */
-            if (ticksRestantes > 0) {
-                proceso.guardarContexto(cpu);
-                return;
-            }
-        }
-
-        /*
-         * Cuando el peso fue consumido se aplica realmente
-         * el efecto de la instrucción.
-         *
-         * INT 09H tiene peso 0, por lo que llega directamente aquí.
-         */
         boolean pcModificado;
         try {
             pcModificado = executor.ejecutar(instruccionActual);
@@ -294,7 +266,7 @@ public class Controlador {
          */
         if (gestorProcesos.getProcesoActual() != proceso) {
             intentarReactivarSuspendidos();
-            if (gestorProcesos.getProcesoActual() == null && fcfs.hayProcesosPreparados()) {
+            if (gestorProcesos.getProcesoActual() == null && planificador.hayProcesosPreparados()) {
                 despachador.despacharSiguiente();
             }
             return;
@@ -340,8 +312,7 @@ public class Controlador {
      * Ejecuta automáticamente mientras existan procesos capaces
      * de utilizar la CPU.
      *
-     * Si todos los procesos quedan bloqueados esperando entrada,
-     * el método se detiene para permitir interacción con el usuario.
+     * Si no existen procesos ejecutables, el método se detiene.
      */
     public void ejecutarTodo() {
 
@@ -349,26 +320,13 @@ public class Controlador {
 
             if (gestorProcesos.getProcesoActual() == null) {
                 intentarReactivarSuspendidos();
-                if (!fcfs.hayProcesosPreparados()) {
+                if (!planificador.hayProcesosPreparados()) {
                     break;
                 }
             }
 
             ejecutarSiguiente();
         }
-    }
-
-    /**
-     * Entrega una entrada de teclado al proceso que está esperando
-     * una INT 09H.
-     */
-    public BCP recibirEntradaTeclado(String entrada) {
-        BCP proceso = gestorInterrupciones.recibirEntradaTeclado(entrada);
-        intentarReactivarSuspendidos();
-        if (gestorProcesos.getProcesoActual() == null && fcfs.hayProcesosPreparados()) {
-            despachador.despacharSiguiente();
-        }
-        return proceso;
     }
 
     private void intentarReactivarSuspendidos() {
@@ -388,11 +346,10 @@ public class Controlador {
     }
 
     /**
-     * Limpia el control de ticks correspondiente a la instrucción anterior.
+     * Limpia la referencia a la instrucción anterior.
      */
     private void reiniciarControlInstruccion() {
         instruccionActual = null;
-        ticksRestantes = 0;
     }
 
     /**

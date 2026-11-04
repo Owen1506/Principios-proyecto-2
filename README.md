@@ -22,7 +22,7 @@ estadísticas de ejecución.
 - **Ejecución manual y automática:** el botón **Siguiente** avanza un tick de
   ejecución; cada tick consumido equivale a un segundo simulado de CPU. El botón
   **Ejecutar** avanza automáticamente cada segundo real, con posibilidad de pausar.
-  Las instrucciones consumen el tiempo correspondiente a su peso.
+  Todas las instrucciones tienen peso 1 y consumen un segundo simulado.
 - **Administración de procesos:** identificación por PID, BCP, estados del proceso,
   planificación FCFS y almacenamiento/restauración del contexto de CPU.
 - **Límite de RAM:** hasta cinco procesos simultáneos en memoria principal,
@@ -33,11 +33,12 @@ estadísticas de ejecución.
   cuando no pueden ingresar a RAM y reactivación al liberarse espacio y un cupo.
 - **Almacenamiento simulado:** copia de los programas en disco, control de capacidad
   e índice de nombres y direcciones en sus primeras posiciones. Los programas
-  ocupan espacio según la suma de los pesos de sus instrucciones.
+  ocupan una posición por instrucción.
 - **Servicios de archivos:** crear, abrir, leer, escribir y eliminar mediante
   `INT 21H`, con control de archivos abiertos por proceso.
-- **Entrada y salida:** teclado mediante `INT 09H`, pantalla mediante `INT 10H`
-  y finalización mediante `INT 20H`.
+- **Interrupciones:** pantalla mediante `INT 10H`, finalización mediante
+  `INT 20H` y archivos mediante `INT 21H`, sin esperar Enter.
+  La entrada por teclado `INT 09H` ya no está disponible.
 - **Configuración externa:** archivo TXT para los tamaños de memoria y
   almacenamiento, partición de kernel, límites de procesos y algoritmo. El
   algoritmo disponible actualmente es **FCFS**.
@@ -48,7 +49,7 @@ estadísticas de ejecución.
   liberan sus recursos y permiten continuar con el siguiente proceso mediante FCFS.
   `PARAM` comprueba el espacio antes de insertar valores para evitar cambios parciales.
 - **Reinicio coordinado:** limpieza de CPU, RAM, procesos, colas, memoria virtual,
-  entradas pendientes y errores.
+  salidas y errores.
 
 ## Objetivos no alcanzados o pendientes de verificación
 
@@ -99,8 +100,7 @@ Se requiere **JDK 25**, según la configuración actual del proyecto.
    [`codigo`](codigo). **Ejecutar desde disco** permite ejecutar una copia ya guardada.
 4. Pulsar **Siguiente** para avanzar manualmente o **Ejecutar** para iniciar el
    modo automático. **Pausar** detiene el avance automático.
-5. Introducir un entero de 0 a 255 cuando un proceso solicite entrada de teclado.
-6. Consultar los procesos, BCP, registros, RAM, disco, archivos y estadísticas.
+5. Consultar los procesos, BCP, registros, RAM, disco, archivos y estadísticas.
 
 
 

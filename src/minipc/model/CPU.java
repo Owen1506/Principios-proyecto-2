@@ -25,7 +25,7 @@ public class CPU {
     private String ir;
     private int ac;
     private boolean zeroFlag;
-
+    
     private Registros registros;
 
     /**

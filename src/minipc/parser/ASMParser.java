@@ -92,18 +92,18 @@ public class ASMParser {
                 // Se eliminan las comillas exteriores.
                 String texto = segundoOperando.substring(1, segundoOperando.length() - 1);
 
-                return new Instruccion(operacion, registro, null, null, null, null, linea, texto, 1);
+                return new Instruccion(operacion, registro, null, null, null, null, linea, texto);
             }
 
             // MOV entre registros.
             if (REGISTROS.contains(segundoOperando.toUpperCase())) {
                 String registro2 = segundoOperando.toUpperCase();
-                return new Instruccion(operacion, registro, registro2, null, null, null, linea, null, 1);
+                return new Instruccion(operacion, registro, registro2, null, null, null, linea, null);
             }
 
             // MOV con valor numérico inmediato.
             int valor = Integer.parseInt(segundoOperando);
-            return new Instruccion(operacion, registro, null, null, valor, null, linea, null, 1);
+            return new Instruccion(operacion, registro, null, null, valor, null, linea, null);
         }
 
         /*
@@ -116,20 +116,13 @@ public class ASMParser {
             switch (servicio) {
 
                 case "21H":
-                    return new Instruccion(operacion, null, null, servicio, null, null, linea, null, 5);
-
-                /*
-                 * INT 09H tiene peso 0 porque permanece esperando
-                 * la entrada del teclado hasta que el usuario presione Enter.
-                 */
-                case "09H":
-                    return new Instruccion(operacion, null, null, servicio, null, null, linea, null, 0);
+                    return new Instruccion(operacion, null, null, servicio, null, null, linea, null);
 
                 case "10H":
-                    return new Instruccion(operacion, null, null, servicio, null, null, linea, null, 2);
+                    return new Instruccion(operacion, null, null, servicio, null, null, linea, null);
 
                 case "20H":
-                    return new Instruccion(operacion, null, null, servicio, null, null, linea, null, 2);
+                    return new Instruccion(operacion, null, null, servicio, null, null, linea, null);
 
                 default:
                     throw new IllegalArgumentException("Servicio de interrupción inválido: " + servicio);
@@ -142,7 +135,7 @@ public class ASMParser {
         else if (operacion.equals("JMP") || operacion.equals("JE") || operacion.equals("JNE")) {
 
             int valor = Integer.parseInt(operandos);
-            return new Instruccion(operacion, null, null, null, valor, null, linea, null, 2);
+            return new Instruccion(operacion, null, null, null, valor, null, linea, null);
         }
 
         /*
@@ -154,11 +147,11 @@ public class ASMParser {
         else if (operacion.equals("INC") || operacion.equals("DEC")) {
 
             if (operandos.isEmpty()) {
-                return new Instruccion(operacion, null, null, null, 1, null, linea, null, 1);
+                return new Instruccion(operacion, null, null, null, 1, null, linea, null);
             }
 
             String registro = operandos.toUpperCase();
-            return new Instruccion(operacion, registro, null, null, 1, null, linea, null, 1);
+            return new Instruccion(operacion, registro, null, null, 1, null, linea, null);
         }
 
         /*
@@ -172,10 +165,10 @@ public class ASMParser {
             String registro2 = partesOperacion[1].trim().toUpperCase();
 
             if (operacion.equals("SWAP")) {
-                return new Instruccion(operacion, registro, registro2, null, null, null, linea, null, 1);
+                return new Instruccion(operacion, registro, registro2, null, null, null, linea, null);
             }
 
-            return new Instruccion(operacion, registro, registro2, null, null, null, linea, null, 2);
+            return new Instruccion(operacion, registro, registro2, null, null, null, linea, null);
         }
 
         /*
@@ -191,7 +184,7 @@ public class ASMParser {
                 params.add(valor);
             }
 
-            return new Instruccion(operacion, null, null, null, null, params, linea, null, 3);
+            return new Instruccion(operacion, null, null, null, null, params, linea, null);
         }
 
         /*
@@ -202,22 +195,22 @@ public class ASMParser {
         switch (operacion) {
 
             case "ADD":
-                return new Instruccion(operacion, registro, null, null, null, null, linea, null, 3);
+                return new Instruccion(operacion, registro, null, null, null, null, linea, null);
 
             case "LOAD":
-                return new Instruccion(operacion, registro, null, null, null, null, linea, null, 2);
+                return new Instruccion(operacion, registro, null, null, null, null, linea, null);
 
             case "SUB":
-                return new Instruccion(operacion, registro, null, null, null, null, linea, null, 3);
+                return new Instruccion(operacion, registro, null, null, null, null, linea, null);
 
             case "STORE":
-                return new Instruccion(operacion, registro, null, null, null, null, linea, null, 2);
+                return new Instruccion(operacion, registro, null, null, null, null, linea, null);
 
             case "PUSH":
-                return new Instruccion(operacion, registro, null, null, null, null, linea, null, 1);
+                return new Instruccion(operacion, registro, null, null, null, null, linea, null);
 
             case "POP":
-                return new Instruccion(operacion, registro, null, null, null, null, linea, null, 1);
+                return new Instruccion(operacion, registro, null, null, null, null, linea, null);
 
             default:
                 throw new IllegalArgumentException("Operación no reconocida por el parser: " + operacion);

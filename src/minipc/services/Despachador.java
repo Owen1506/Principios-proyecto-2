@@ -15,16 +15,16 @@ public class Despachador {
 
     private CPU cpu;
     private GestorProcesos gestorProcesos;
-    private FCFS planificador;
+    private planificadordeProcesos planificador;
 
     /**
      * Crea un nuevo despachador.
      *
      * @param cpu CPU de la Mini PC
      * @param gestorProcesos gestor encargado de administrar los procesos
-     * @param planificador planificador FCFS
+     * @param planificador selector del siguiente proceso preparado
      */
-    public Despachador(CPU cpu, GestorProcesos gestorProcesos, FCFS planificador) {
+    public Despachador(CPU cpu, GestorProcesos gestorProcesos, planificadordeProcesos planificador) {
 
         if (cpu == null) {
             throw new IllegalArgumentException("La CPU no puede ser null.");
@@ -59,7 +59,7 @@ public class Despachador {
     }
 
     /**
-     * Selecciona mediante FCFS el siguiente proceso preparado
+     * Selecciona mediante el planificador el siguiente proceso preparado
      * y le asigna la CPU.
      *
      * @return proceso que recibió la CPU o null si no existen

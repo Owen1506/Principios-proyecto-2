@@ -72,20 +72,23 @@ public class MainWindow extends JFrame {
 
     private static final Color GRIS_SUAVE = new Color(236, 239, 242);
 
-    private final JLabel procesoCPU = new JLabel("CPU libre");
+    private static final int MAX_CPUS = 5;
+    private final JLabel[] procesoCPU = crearValoresCPU("");
 
-    private final JLabel valorPC = valorRegistro("0");
-    private final JLabel valorIR = valorRegistro("");
-    private final JLabel valorAC = valorRegistro("0");
-    private final JLabel valorAX = valorRegistro("0");
-    private final JLabel valorBX = valorRegistro("0");
-    private final JLabel valorCX = valorRegistro("0");
-    private final JLabel valorDX = valorRegistro("0");
-    private final JLabel valorAH = valorRegistro("");
-    private final JLabel valorAL = valorRegistro("");
-    private final JLabel valorZF = valorRegistro("false");
+    private final JLabel[] valorPC = crearValoresCPU("0");
+    private final JLabel[] valorIR = crearValoresCPU("");
+    private final JLabel[] valorAC = crearValoresCPU("0");
+    private final JLabel[] valorAX = crearValoresCPU("0");
+    private final JLabel[] valorBX = crearValoresCPU("0");
+    private final JLabel[] valorCX = crearValoresCPU("0");
+    private final JLabel[] valorDX = crearValoresCPU("0");
+    private final JLabel[] valorAH = crearValoresCPU("");
+    private final JLabel[] valorAL = crearValoresCPU("");
+    private final JLabel[] valorZF = crearValoresCPU("false");
 
-    private final JLabel estadoMonitor = new JLabel("Sin entrada solicitada");
+    private final JLabel[] valorAlgoritmo = crearValoresCPU("—");
+
+    private final JLabel estadoMonitor = new JLabel("Salida de programas");
 
     private final JLabel valorRAM = new JLabel("-");
     private final JLabel valorKernel = new JLabel("-");
@@ -97,7 +100,6 @@ public class MainWindow extends JFrame {
 
     private final JTextArea detalle = texto();
     private final JTextArea pantalla = texto();
-    private final JTextField entrada = new JTextField(10);
 
     private final JCheckBox conservar = new JCheckBox("Conservar archivos al reiniciar", true);
 
@@ -106,7 +108,6 @@ public class MainWindow extends JFrame {
     private final JButton siguiente = new JButton("Siguiente");
     private final JButton automatico = new JButton("Ejecutar");
     private final JButton pausa = new JButton("Pausar");
-    private final JButton enviar = new JButton("Enviar");
 
     private final DefaultTableModel trabajos = modelo(
             "PID", "Programa", "Estado", "Ubicación", "Base", "Instrucciones", "Tiempo CPU (s)");
@@ -333,12 +334,16 @@ public class MainWindow extends JFrame {
 
         JPanel superior = new JPanel(new BorderLayout(8, 8));
         superior.setOpaque(false);
-        superior.setMinimumSize(new Dimension(160, 230));
-        superior.add(crearPanelCPU(), BorderLayout.CENTER);
+        JPanel panelCPU = crearPanelCPU();
+        superior.add(panelCPU, BorderLayout.CENTER);
+        // Reserva la altura natural de pestañas, estado y registros según la fuente.
+        int alturaCPU = panelCPU.getPreferredSize().height;
+        superior.setMinimumSize(new Dimension(160, alturaCPU));
+        superior.setPreferredSize(new Dimension(400, alturaCPU));
 
         JPanel inferior = new JPanel(new BorderLayout(8, 8));
         inferior.setOpaque(false);
-        inferior.setMinimumSize(new Dimension(160, 260));
+        inferior.setMinimumSize(new Dimension(160, 160));
         inferior.add(crearPanelConsola(), BorderLayout.CENTER);
 
         JSplitPane division = new JSplitPane(
@@ -346,41 +351,67 @@ public class MainWindow extends JFrame {
                 superior,
                 inferior);
 
-        configurarSplit(division, 0.40, 230);
+        configurarSplit(division, 0.40, alturaCPU);
 
         panel.add(division, BorderLayout.CENTER);
 
         return panel;
     }
 
+    private JLabel[] crearValoresCPU(String inicial) {
+        JLabel[] valores = new JLabel[MAX_CPUS];
+        for (int i = 0; i < MAX_CPUS; i++) {
+            valores[i] = valorRegistro(i == 0 ? inicial : "—");
+        }
+        return valores;
+    }
+
     private JPanel crearPanelCPU() {
-
         JPanel panel = panelSeccion("Procesador (CPU)");
+        JTabbedPane cpus = new JTabbedPane();
+        cpus.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
+        for (int i = 0; i < MAX_CPUS; i++) {
+            cpus.addTab("CPU " + (i + 1), crearEstadoCPU(i));
+            if (i > 0) {
+                cpus.setToolTipTextAt(i, "Esta CPU todavía no está configurada.");
+            }
+        }
+        panel.add(cpus, BorderLayout.CENTER);
+        return panel;
+    }
 
-        procesoCPU.setFont(procesoCPU.getFont().deriveFont(Font.BOLD, 16f));
-        procesoCPU.setForeground(AZUL);
-        procesoCPU.setHorizontalAlignment(SwingConstants.CENTER);
-        procesoCPU.setBorder(new EmptyBorder(4, 4, 10, 4));
+    private JPanel crearEstadoCPU(int indice) {
 
-        panel.add(procesoCPU, BorderLayout.NORTH);
+        JPanel panel = new JPanel(new BorderLayout(4, 4));
+        panel.setBackground(PANEL);
+        panel.setBorder(new EmptyBorder(4, 0, 0, 0));
+
+        procesoCPU[indice].setText("CPU " + (indice + 1)
+                + (indice == 0 ? " libre" : " no configurada"));
+        procesoCPU[indice].setFont(procesoCPU[indice].getFont().deriveFont(Font.BOLD, 16f));
+        procesoCPU[indice].setForeground(AZUL);
+        procesoCPU[indice].setHorizontalAlignment(SwingConstants.CENTER);
+        procesoCPU[indice].setBorder(new EmptyBorder(4, 4, 10, 4));
+
+        panel.add(procesoCPU[indice], BorderLayout.NORTH);
 
         JPanel registros = new JPanel(new GridLayout(3, 4, 8, 8));
         registros.setOpaque(false);
         registros.setBorder(new EmptyBorder(2, 4, 2, 4));
 
-        registros.add(crearCeldaRegistro("PC", valorPC, AZUL_SUAVE, AZUL));
-        registros.add(crearCeldaRegistro("IR", valorIR, MORADO_SUAVE, MORADO));
-        registros.add(crearCeldaRegistro("AC", valorAC, VERDE_SUAVE, VERDE));
-        registros.add(crearCeldaRegistro("ZF", valorZF, GRIS_SUAVE, TEXTO_SECUNDARIO));
+        registros.add(crearCeldaRegistro("PC", valorPC[indice], AZUL_SUAVE, AZUL));
+        registros.add(crearCeldaRegistro("IR", valorIR[indice], MORADO_SUAVE, MORADO));
+        registros.add(crearCeldaRegistro("AC", valorAC[indice], VERDE_SUAVE, VERDE));
+        registros.add(crearCeldaRegistro("ZF", valorZF[indice], GRIS_SUAVE, TEXTO_SECUNDARIO));
 
-        registros.add(crearCeldaRegistro("AX", valorAX, PANEL, BORDE));
-        registros.add(crearCeldaRegistro("BX", valorBX, PANEL, BORDE));
-        registros.add(crearCeldaRegistro("CX", valorCX, PANEL, BORDE));
-        registros.add(crearCeldaRegistro("DX", valorDX, PANEL, BORDE));
+        registros.add(crearCeldaRegistro("AX", valorAX[indice], PANEL, BORDE));
+        registros.add(crearCeldaRegistro("BX", valorBX[indice], PANEL, BORDE));
+        registros.add(crearCeldaRegistro("CX", valorCX[indice], PANEL, BORDE));
+        registros.add(crearCeldaRegistro("DX", valorDX[indice], PANEL, BORDE));
 
-        registros.add(crearCeldaRegistro("AH", valorAH, PANEL, BORDE));
-        registros.add(crearCeldaRegistro("AL", valorAL, PANEL, BORDE));
-        registros.add(crearCeldaRegistro("ALGORITMO", new JLabel("FCFS"), GRIS_SUAVE, TEXTO_SECUNDARIO));
+        registros.add(crearCeldaRegistro("AH", valorAH[indice], PANEL, BORDE));
+        registros.add(crearCeldaRegistro("AL", valorAL[indice], PANEL, BORDE));
+        registros.add(crearCeldaRegistro("ALGORITMO", valorAlgoritmo[indice], GRIS_SUAVE, TEXTO_SECUNDARIO));
 
         panel.add(registros, BorderLayout.CENTER);
 
@@ -450,24 +481,9 @@ public class MainWindow extends JFrame {
 
         panel.add(scroll, BorderLayout.CENTER);
 
-        JPanel teclado = new JPanel(new BorderLayout(8, 6));
-        teclado.setOpaque(false);
-        teclado.setBorder(new EmptyBorder(8, 0, 0, 0));
-
-        JLabel etiqueta = new JLabel("Teclado · valor de 0 a 255");
-        etiqueta.setFont(etiqueta.getFont().deriveFont(Font.BOLD));
-
-        entrada.setToolTipText("Valor entero entre 0 y 255");
-        aplicarBotonPrincipal(enviar);
-
-        teclado.add(etiqueta, BorderLayout.NORTH);
-        teclado.add(entrada, BorderLayout.CENTER);
-        teclado.add(enviar, BorderLayout.EAST);
         estadoMonitor.setForeground(TEXTO_SECUNDARIO);
         estadoMonitor.setBorder(new EmptyBorder(0, 0, 8, 0));
         panel.add(estadoMonitor, BorderLayout.NORTH);
-
-        panel.add(teclado, BorderLayout.SOUTH);
 
         return panel;
     }
@@ -553,7 +569,6 @@ public class MainWindow extends JFrame {
 
     private void configurarBotones() {
         conservar.setFocusPainted(false);
-        entrada.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 13));
     }
 
     private void aplicarBotonPrincipal(JButton boton) {
@@ -652,8 +667,6 @@ public class MainWindow extends JFrame {
             actualizar();
         });
 
-        enviar.addActionListener(e -> entregarEntrada());
-        entrada.addActionListener(e -> entregarEntrada());
 
     }
 
@@ -815,21 +828,6 @@ public class MainWindow extends JFrame {
         }
     }
 
-    private void entregarEntrada() {
-
-        try {
-            controlador.recibirEntradaTeclado(entrada.getText());
-            entrada.setText("");
-
-            if (continuarAutomatico) reloj.start();
-
-            actualizar();
-
-        } catch (RuntimeException ex) {
-            mostrarError(ex);
-        }
-    }
-
     private void detener() {
         reloj.stop();
         continuarAutomatico = false;
@@ -870,10 +868,6 @@ public class MainWindow extends JFrame {
         siguiente.setEnabled(ejecutable && !continuarAutomatico);
         automatico.setEnabled(ejecutable && !continuarAutomatico);
 
-        boolean espera = listo && controlador.getGestorInterrupciones().hayProcesoEsperandoTeclado();
-
-        enviar.setEnabled(espera);
-        entrada.setEnabled(espera);
 
         if (!listo) {
             valorRAM.setText("-");
@@ -915,19 +909,21 @@ public class MainWindow extends JFrame {
         CPU c = controlador.getCPU();
         BCP actual = controlador.getProcesoActual();
 
-        procesoCPU.setText(actual == null ? "CPU libre" : "Ejecutando PID " + actual.getPid());
-        procesoCPU.setForeground(actual == null ? TEXTO_SECUNDARIO : VERDE);
+        procesoCPU[0].setText(actual == null ? "CPU 1 libre" : "CPU 1 ejecutando PID " + actual.getPid());
+        procesoCPU[0].setForeground(actual == null ? TEXTO_SECUNDARIO : VERDE);
 
-        valorPC.setText(Integer.toString(c.getPC()));
-        valorIR.setText(c.getIR());
-        valorAC.setText(Integer.toString(c.getAC()));
-        valorAX.setText(Integer.toString(c.getRegistros().getAX()));
-        valorBX.setText(Integer.toString(c.getRegistros().getBX()));
-        valorCX.setText(Integer.toString(c.getRegistros().getCX()));
-        valorDX.setText(c.getRegistros().getDX());
-        valorAH.setText(c.getRegistros().getAH());
-        valorAL.setText(c.getRegistros().getAL());
-        valorZF.setText(Boolean.toString(c.isZeroFlag()));
+        valorPC[0].setText(Integer.toString(c.getPC()));
+        valorIR[0].setText(c.getIR());
+        valorAC[0].setText(Integer.toString(c.getAC()));
+        valorAX[0].setText(Integer.toString(c.getRegistros().getAX()));
+        valorBX[0].setText(Integer.toString(c.getRegistros().getBX()));
+        valorCX[0].setText(Integer.toString(c.getRegistros().getCX()));
+        valorDX[0].setText(c.getRegistros().getDX());
+        valorAH[0].setText(c.getRegistros().getAH());
+        valorAL[0].setText(c.getRegistros().getAL());
+        valorZF[0].setText(Boolean.toString(c.isZeroFlag()));
+
+        valorAlgoritmo[0].setText(configuracion.getAlgoritmo());
 
         actualizando = true;
 
@@ -1044,8 +1040,7 @@ public class MainWindow extends JFrame {
             pantalla.setText(contenidoMonitor);
             pantalla.setCaretPosition(pantalla.getDocument().getLength());
         }
-        estadoMonitor.setText(espera ? "Entrada solicitada: escribe un valor y presiona Enter o Enviar."
-                : "Salida de programas · " + salidas.size() + " mensajes");
+        estadoMonitor.setText("Salida de programas · " + salidas.size() + " mensajes");
 
         actualizarDetalle();
     }

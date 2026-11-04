@@ -13,6 +13,7 @@ public class Registros {
 
     private int bx;
     private int cx;
+    
     private String dx; // Ya que se podran hacer movimientos a dx como MOV DX, "prueba" y posteriormente interrupcion para manejo de archivos.
     private String al;
     private String ah;

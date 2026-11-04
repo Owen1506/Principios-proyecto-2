@@ -33,7 +33,7 @@ public class ASMValidator {
      */
     private static final List<String> REGISTROS = List.of("AX", "BX", "CX", "DX","AH","AL");
 
-    private static final List<String> SERVICIOS = List.of("21H", "10H", "09H", "20H");
+    private static final List<String> SERVICIOS = List.of("21H", "10H", "20H");
     private static final List<String> VALORESAH = List.of("3CH","3DH","4DH","40H","41H");
     /**
      * Operaciones admitidas por el lenguaje ASM simplificado.
@@ -295,7 +295,7 @@ public class ASMValidator {
                 }
                 else if (operacion.equals("INT")){
                         if (!SERVICIOS.contains(operando.trim().toUpperCase())){
-                           return operacion + " debe recibir una llamada de sistema válido: " + "21H, 09H, 20H o 10H.";     
+                           return operacion + " debe recibir una llamada de sistema válido: " + "21H, 20H o 10H.";     
                         }
                 } 
                 else if (operacion.equals("JMP") || operacion.equals("JE") || operacion.equals("JNE")){

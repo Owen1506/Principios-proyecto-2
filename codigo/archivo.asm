@@ -1,0 +1,30 @@
+MOV AX, 15
+MOV BX, 27
+LOAD AX
+ADD BX
+STORE CX
+
+MOV DX, "datos.txt"
+MOV AH, "3ch"
+INT 21H
+
+MOV AL, 0
+MOV AH, "3DH"
+INT 21H
+
+MOV AL, CX
+
+MOV AH, "40h"
+INT 21H
+
+
+
+MOV AH, "4dh"
+INT 21H
+
+MOV DX, AL
+INT 10H
+MOV DX, "datos.txt"
+MOV AH, "41h"
+INT 21H
+INT 20H
