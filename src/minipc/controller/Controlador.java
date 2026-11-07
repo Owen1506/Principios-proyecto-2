@@ -1,29 +1,27 @@
 package minipc.controller;
 
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import minipc.config.ConfigLoader;
+import minipc.config.Configuracion;
 import minipc.model.Almacenamiento;
 import minipc.model.BCP;
 import minipc.model.CPU;
 import minipc.model.EstadoProceso;
 import minipc.model.Instruccion;
 import minipc.model.Memoria;
-import minipc.config.Configuracion;
-import minipc.config.ConfigLoader;
-import java.io.IOException;
-import java.nio.file.Path;
-
+import minipc.parser.ASMParser;
+import minipc.parser.ASMReader;
+import minipc.parser.ASMValidator;
 import minipc.services.Despachador;
 import minipc.services.Executor;
 import minipc.services.FCFS;
 import minipc.services.GestorInterrupciones;
-import minipc.services.GestorProcesos;
 import minipc.services.GestorMemoriaVirtual;
+import minipc.services.GestorProcesos;
 import minipc.services.SistemaArchivos;
-
-import java.util.List;
-import java.util.ArrayList;
-import minipc.parser.ASMReader;
-import minipc.parser.ASMValidator;
-import minipc.parser.ASMParser;
 
 /**
  * Coordina los principales componentes de la Mini PC.
@@ -35,7 +33,7 @@ public class Controlador {
     private CPU cpu;
     private Memoria memoria;
     private Almacenamiento almacenamiento;
-
+    private int tiempoSimulado = 0;
     private GestorProcesos gestorProcesos;
     private GestorMemoriaVirtual gestorMemoriaVirtual;
     private FCFS fcfs;
@@ -50,7 +48,8 @@ public class Controlador {
     private Configuracion configuracion;
     private final List<String> erroresEjecucion = new ArrayList<>();
 
-    public Controlador(int tamañoMemoria, int inicioUsuario, int tamañoAlmacenamiento, int tamañoIndice, int tamañoMemoriaVirtual) {
+    public Controlador(int tamañoMemoria, int inicioUsuario, int tamañoAlmacenamiento, int tamañoIndice,
+            int tamañoMemoriaVirtual) {
 
         this.cpu = new CPU();
         this.memoria = new Memoria(tamañoMemoria, inicioUsuario);
@@ -172,7 +171,7 @@ public class Controlador {
         try {
             inicioPrograma = memoria.cargarPrograma(programa);
             bcp = gestorProcesos.crearProceso(inicioPrograma, programa.size(), prioridad);
-            gestorProcesos.prepararProceso(bcp);
+
             return bcp;
 
         } catch (RuntimeException e) {
@@ -189,12 +188,35 @@ public class Controlador {
     /**
      * Ejecuta un segundo/tick simulado.
      *
-     * Cada llamada representa un clic del botón Siguiente.
+     * Cada llamada representa un clic del botón Siguiente
+     * o un segundo de ejecución automática.
      */
     public void ejecutarSiguiente() {
 
+        if (simulacionFinalizada()) {
+            return;
+        }
+
+        // Verificar qué procesos alcanzaron su tiempo de llegada.
+        gestorProcesos.prepararProcesosLlegados(tiempoSimulado);
+
+        // Ejecutar un paso de CPU.
+        ejecutarPasoCPU();
+
+        // Avanzar el reloj global, incluso si la CPU estuvo ociosa.
+        tiempoSimulado++;
+    }
+
+    /**
+     * Ejecuta un paso del procesador utilizando FCFS.
+     *
+     * Conserva la lógica de ejecución de instrucciones,
+     * interrupciones, cambios de contexto y finalización.
+     */
+    private void ejecutarPasoCPU() {
+
         /*
-         * Si la CPU está libre se intenta despachar un proceso.
+         * Si la CPU está libre, se intenta despachar un proceso.
          */
         if (gestorProcesos.getProcesoActual() == null) {
 
@@ -218,90 +240,122 @@ public class Controlador {
          * Si el PC ya superó el programa, el proceso termina.
          */
         if (cpu.getPC() > proceso.getFinPrograma()) {
+
             despachador.guardarContextoActual();
             gestorProcesos.finalizarProcesoActual();
+
             reiniciarControlInstruccion();
             intentarReactivarSuspendidos();
             despachador.despacharSiguiente();
+
             return;
         }
 
         if (cpu.getPC() < proceso.getInicioPrograma()) {
-            finalizarPorError(proceso, new IllegalStateException("El PC se encuentra fuera del rango del proceso."));
+
+            finalizarPorError(
+                    proceso,
+                    new IllegalStateException(
+                            "El PC se encuentra fuera del rango del proceso."));
+
             return;
         }
 
         /*
          * FETCH.
          *
-         * Solo se obtiene una nueva instrucción cuando no existe
-         * otra consumiendo ticks.
+         * Se obtiene una nueva instrucción solamente cuando
+         * no existe otra consumiendo ticks de CPU.
          */
         if (instruccionActual == null) {
 
             instruccionActual = memoria.leer(cpu.getPC());
 
             if (instruccionActual == null) {
-                finalizarPorError(proceso, new IllegalStateException("No existe una instrucción en la dirección " + cpu.getPC()));
+
+                finalizarPorError(
+                        proceso,
+                        new IllegalStateException(
+                                "No existe una instrucción en la dirección "
+                                        + cpu.getPC()));
+
                 return;
             }
 
             cpu.setIR(instruccionActual.getTextoOriginal());
+
             ticksRestantes = instruccionActual.getPeso();
         }
 
         /*
-         * Una instrucción con peso mayor a cero consume un segundo
-         * de CPU por cada clic.
+         * Consumir un segundo de CPU.
          */
         if (instruccionActual.getPeso() > 0) {
 
             gestorProcesos.incrementarTiempoCPU();
+
             ticksRestantes--;
 
             /*
-             * Todavía no ha consumido todo su peso.
+             * La instrucción todavía necesita más tiempo.
              */
             if (ticksRestantes > 0) {
+
                 proceso.guardarContexto(cpu);
+
                 return;
             }
         }
 
         /*
-         * Cuando el peso fue consumido se aplica realmente
-         * el efecto de la instrucción.
-         *
-         * INT 09H tiene peso 0, por lo que llega directamente aquí.
+         * Ejecutar el efecto de la instrucción una vez
+         * consumidos los ticks correspondientes.
          */
         boolean pcModificado;
+
         try {
+
             pcModificado = executor.ejecutar(instruccionActual);
-        } catch (IllegalArgumentException | IllegalStateException | ArithmeticException error) {
-            // Una falla posterior al cambio de proceso no debe finalizar al siguiente PID.
-            if (gestorProcesos.getProcesoActual() != proceso) throw error;
+
+        } catch (IllegalArgumentException
+                | IllegalStateException
+                | ArithmeticException error) {
+
+            /*
+             * Evitar finalizar un proceso distinto si una
+             * interrupción produjo un cambio de contexto.
+             */
+            if (gestorProcesos.getProcesoActual() != proceso) {
+                throw error;
+            }
+
             finalizarPorError(proceso, error);
+
             return;
         }
 
         reiniciarControlInstruccion();
 
         /*
-         * Una interrupción puede haber bloqueado o finalizado el proceso
-         * y el Despachador puede haber entregado la CPU a otro proceso.
-         *
-         * En ese caso no debemos modificar el PC del nuevo proceso.
+         * Una interrupción puede bloquear o finalizar el
+         * proceso actual y asignar la CPU a otro proceso.
          */
         if (gestorProcesos.getProcesoActual() != proceso) {
+
             intentarReactivarSuspendidos();
-            if (gestorProcesos.getProcesoActual() == null && fcfs.hayProcesosPreparados()) {
+
+            if (gestorProcesos.getProcesoActual() == null
+                    && fcfs.hayProcesosPreparados()) {
+
                 despachador.despacharSiguiente();
             }
+
             return;
         }
 
         /*
-         * JMP, JE o JNE pueden modificar directamente el PC.
+         * Los saltos JMP, JE y JNE pueden modificar
+         * directamente el Program Counter.
          */
         if (!pcModificado) {
             cpu.incrementarPC();
@@ -310,14 +364,51 @@ public class Controlador {
         proceso.guardarContexto(cpu);
 
         /*
-         * Si se alcanzó el final sin utilizar INT 20H,
-         * también se finaliza el proceso.
+         * Si el programa llegó a su última instrucción
+         * sin utilizar INT 20H, también debe finalizar.
          */
         if (cpu.getPC() > proceso.getFinPrograma()) {
+
             gestorProcesos.finalizarProcesoActual();
+
             intentarReactivarSuspendidos();
+
             despachador.despacharSiguiente();
         }
+    }
+
+    /*
+     * Si todos los procesos tienen una llegada posterior a cero, todavía no habrá
+     * ninguno en READY.
+     */
+    public boolean puedeAvanzar() {
+
+        if (gestorProcesos.getProcesoActual() != null) {
+            return true;
+        }
+
+        if (!gestorProcesos.getColaPreparados().isEmpty()) {
+            return true;
+        }
+
+        for (BCP proceso : gestorProcesos.getListaTrabajos()) {
+
+            // Procesos que todavía deben llegar.
+            if (proceso.getEstado() == EstadoProceso.NUEVO) {
+                return true;
+            }
+
+            // Procesos suspendidos que podrían reactivarse.
+            if (proceso.getEstado() == EstadoProceso.PREPARADO_SUSPENDIDO
+                    && gestorMemoriaVirtual.estaEnMemoriaVirtual(proceso)
+                    && gestorProcesos.hayEspacioParaPrograma(
+                            proceso.getTamañoPrograma())) {
+
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void finalizarPorError(BCP proceso, RuntimeException error) {
@@ -345,15 +436,7 @@ public class Controlador {
      */
     public void ejecutarTodo() {
 
-        while (!simulacionFinalizada()) {
-
-            if (gestorProcesos.getProcesoActual() == null) {
-                intentarReactivarSuspendidos();
-                if (!fcfs.hayProcesosPreparados()) {
-                    break;
-                }
-            }
-
+        while (!simulacionFinalizada() && puedeAvanzar()) {
             ejecutarSiguiente();
         }
     }
@@ -402,7 +485,10 @@ public class Controlador {
         return gestorProcesos.getCantidadProcesosActivos() == 0;
     }
 
-    /** La suspensión de bloqueados es explícita; no existe una política de desalojo automático. */
+    /**
+     * La suspensión de bloqueados es explícita; no existe una política de desalojo
+     * automático.
+     */
     public void suspenderProceso(int pid) {
         BCP proceso = gestorProcesos.buscarProceso(pid);
         gestorMemoriaVirtual.suspenderProceso(proceso);
@@ -414,6 +500,7 @@ public class Controlador {
 
     /** Reinicia la simulación y permite escoger si conservar los archivos. */
     public void reiniciar(boolean conservarArchivos) {
+        tiempoSimulado = 0;
         erroresEjecucion.clear();
         gestorInterrupciones.reiniciar();
         gestorMemoriaVirtual.reiniciar();
@@ -422,6 +509,23 @@ public class Controlador {
         almacenamiento.reiniciar(!conservarArchivos);
         cpu.reiniciarCPU();
         reiniciarControlInstruccion();
+    }
+
+    public void configurarLlegada(int pid, int llegada) {
+
+        if (llegada < 0) {
+            throw new IllegalArgumentException(
+                    "El tiempo de llegada no puede ser negativo.");
+        }
+
+        BCP proceso = gestorProcesos.buscarProceso(pid);
+
+        if (proceso == null) {
+            throw new IllegalArgumentException(
+                    "No existe el proceso " + pid);
+        }
+
+        proceso.setTiempoLlegada(llegada);
     }
 
     public CPU getCPU() {
@@ -466,5 +570,9 @@ public class Controlador {
 
     public int getFinSO() {
         return memoria.getFinSO();
+    }
+
+    public int getTiempoSimulado() {
+        return tiempoSimulado;
     }
 }

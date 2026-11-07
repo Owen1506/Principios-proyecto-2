@@ -1,13 +1,12 @@
 package minipc.services;
 
+import java.util.ArrayList;
+import java.util.List;
 import minipc.model.Almacenamiento;
 import minipc.model.BCP;
 import minipc.model.EstadoProceso;
 import minipc.model.Instruccion;
 import minipc.model.Memoria;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Administra el intercambio de procesos entre memoria principal
@@ -199,7 +198,7 @@ public class GestorMemoriaVirtual {
         int inicioVirtual = almacenamiento.guardarProgramaVirtual(programa);
 
         registrarDireccionVirtual(proceso.getPid(), inicioVirtual);
-        proceso.setEstado(EstadoProceso.PREPARADO_SUSPENDIDO);
+       
     }
 
     private void registrarDireccionVirtual(int pid, int inicioVirtual) {

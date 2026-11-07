@@ -1,15 +1,14 @@
 package minipc.services;
 
-import minipc.model.BCP;
-import minipc.model.EstadoProceso;
-import minipc.model.Memoria;
-import minipc.config.Configuracion;
-
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
+import minipc.config.Configuracion;
+import minipc.model.BCP;
+import minipc.model.EstadoProceso;
+import minipc.model.Memoria;
 
 /**
  * Administra los procesos existentes dentro de la Mini PC.
@@ -433,4 +432,42 @@ public class GestorProcesos {
     public int getCantidadProcesosActivos() {
         return contarProcesosActivos();
     }
+
+
+/**
+ * Comprueba qué procesos alcanzaron su tiempo de llegada.
+ *
+ * Los procesos en RAM pasan de NUEVO a PREPARADO.
+ * Los procesos en memoria virtual pasan de NUEVO
+ * a PREPARADO_SUSPENDIDO.
+ */
+public void prepararProcesosLlegados(int tiempoActual) {
+
+    for (BCP proceso : listaTrabajos) {
+
+        // Solo revisar procesos que todavía están en NUEVO.
+        if (proceso.getEstado() != EstadoProceso.NUEVO) {
+            continue;
+        }
+
+        // Todavía no ha llegado.
+        if (proceso.getTiempoLlegada() > tiempoActual) {
+            continue;
+        }
+
+        // El programa ya está cargado en RAM.
+        if (proceso.getInicioPrograma() >= 0) {
+
+            prepararProceso(proceso);
+
+        } else {
+
+            // El programa está esperando espacio en RAM.
+            proceso.setEstado(
+                    EstadoProceso.PREPARADO_SUSPENDIDO
+            );
+        }
+    }
+}
+
 }
