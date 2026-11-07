@@ -1,7 +1,7 @@
 package minipc.model;
 
-import java.time.LocalDateTime;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -61,10 +61,19 @@ public class BCP {
     private LocalDateTime horaFinal;
     private int tiempoCPU;
     private String motivoError = "";
+    private final int rafaga;
+    private int tiempoLlegada;
+    private int tiempoRestante;
+    private int tiempoInicioSimulado;
+    private int tiempoFinalSimulado;
 
-    public String getMotivoError() { return motivoError; }
+    public String getMotivoError() {
+        return motivoError;
+    }
 
-    public void setMotivoError(String motivoError) { this.motivoError = motivoError; }
+    public void setMotivoError(String motivoError) {
+        this.motivoError = motivoError;
+    }
 
     // Archivos abiertos por el proceso
     private List<String> archivosAbiertos;
@@ -108,7 +117,6 @@ public class BCP {
         return "PID " + pid + " | " + atributo;
     }
 
-
     /**
      * Crea un nuevo Bloque de Control de Proceso.
      *
@@ -116,7 +124,7 @@ public class BCP {
      * ubicación en memoria principal. Esto permite crear procesos
      * que inicialmente deban permanecer en memoria virtual.
      *
-     * @param pid identificador único del proceso
+     * @param pid            identificador único del proceso
      * @param inicioPrograma dirección inicial del programa en memoria,
      *                       o -1 si aún no está cargado en RAM
      * @param tamañoPrograma cantidad de posiciones de memoria ocupadas
@@ -172,6 +180,11 @@ public class BCP {
         this.archivosAbiertos = new ArrayList<>();
 
         this.zeroFlag = false;
+        this.rafaga = tamañoPrograma;
+        this.tiempoLlegada = 0;
+        this.tiempoRestante = rafaga;
+        this.tiempoInicioSimulado = -1;
+        this.tiempoFinalSimulado = -1;
     }
 
     public void guardarContexto(CPU cpu) {
@@ -344,6 +357,45 @@ public class BCP {
         return tiempoCPU;
     }
 
+    public int getRafaga() {
+        return rafaga;
+    }
+
+    public int getTiempoLlegada() {
+        return tiempoLlegada;
+    }
+
+    public void setTiempoLlegada(int tiempoLlegada) {
+        if (tiempoLlegada < 0) {
+            throw new IllegalArgumentException(
+                    "El tiempo de llegada no puede ser negativo.");
+        }
+
+        this.tiempoLlegada = tiempoLlegada;
+    }
+
+    public int getTiempoRestante() {
+        return tiempoRestante;
+    }
+
+    public int getTiempoInicioSimulado() {
+        return tiempoInicioSimulado;
+    }
+
+    public int getTiempoFinalSimulado() {
+        return tiempoFinalSimulado;
+    }
+
+    public void registrarInicioSimulado(int tiempo) {
+        if (tiempoInicioSimulado == -1) {
+            tiempoInicioSimulado = tiempo;
+        }
+    }
+
+    public void registrarFinSimulado(int tiempo) {
+        tiempoFinalSimulado = tiempo;
+    }
+
     /** Tiempo real desde la primera asignación de CPU hasta la finalización. */
     public Duration getTiempoTotal() {
         if (horaInicio == null || horaFinal == null) {
@@ -354,6 +406,10 @@ public class BCP {
 
     public void incrementarTiempoCPU() {
         tiempoCPU++;
+
+        if (tiempoRestante > 0) {
+            tiempoRestante--;
+        }
     }
 
     /** Duración real final, en segundos; no confundir con los ticks de CPU. */
@@ -394,6 +450,11 @@ public class BCP {
                 + "\nInicio programa=" + inicioPrograma
                 + "\nFin programa=" + finPrograma
                 + "\nTamaño programa=" + tamañoPrograma
+                + "\nRáfaga=" + rafaga
+                + "\nTiempo llegada=" + tiempoLlegada
+                + "\nTiempo restante=" + tiempoRestante
+                + "\nInicio simulado=" + tiempoInicioSimulado
+                + "\nFinal simulado=" + tiempoFinalSimulado
                 + "\nPrioridad=" + prioridad
                 + "\nDireccion BCP=" + direccionBCP
                 + "\nDireccion siguiente BCP=" + direccionSiguienteBCP
@@ -403,5 +464,6 @@ public class BCP {
                 + "\nHora final=" + horaFinal
                 + "\nDuracion real (s)=" + (horaFinal == null ? "Pendiente" : getTiempoTotalSegundos())
                 + "\nArchivos abiertos=" + archivosAbiertos;
+
     }
 }

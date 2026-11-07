@@ -27,16 +27,19 @@ public class CPU {
     private boolean zeroFlag;
 
     private Registros registros;
+    private int CpuActiva; //se usa para calcular cpu activa <=5
 
     /**
      * Crea una nueva CPU e inicializa todos sus componentes.
      */
     public CPU() {
+        this.CpuActiva=+1;
         this.pc = 0;
         this.ir = "";
         this.ac = 0;
         this.zeroFlag = false;
         this.registros = new Registros();
+
     }
 
     /**

@@ -6,10 +6,7 @@ import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
 import java.awt.GridLayout;
-import java.awt.Insets;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -108,8 +105,98 @@ public class MainWindow extends JFrame {
     private final JButton pausa = new JButton("Pausar");
     private final JButton enviar = new JButton("Enviar");
 
-    private final DefaultTableModel trabajos = modelo(
-            "PID", "Programa", "Estado", "Ubicación", "Base", "Instrucciones", "Tiempo CPU (s)");
+    private final DefaultTableModel trabajos = new DefaultTableModel(
+            new Object[] {
+                    "PID",
+                    "Programa",
+                    "Estado",
+                    "Ubicación",
+                    "Base",
+                    "Instrucciones",
+                    "Tiempo CPU (s)",
+                    "Ráfaga",
+                    "Llegada",
+                    "Restante"
+            }, 0) {
+
+        @Override
+        public boolean isCellEditable(int fila, int columna) {
+
+            // Solo se puede editar la columna Llegada.
+            if (columna != 8 || controlador == null || fila < 0) {
+                return false;
+            }
+
+            int pid = Integer.parseInt(
+                    getValueAt(fila, 0).toString());
+
+            BCP proceso = controlador
+                    .getGestorProcesos()
+                    .buscarProceso(pid);
+
+            if (proceso == null) {
+                return false;
+            }
+
+            // Comprobar si algún proceso ha iniciado.
+            boolean algunoInicio = controlador
+                    .getGestorProcesos()
+                    .getListaTrabajos()
+                    .stream()
+                    .anyMatch(p -> p.getHoraInicio() != null);
+
+            // Editable si está NEW o nadie ha iniciado.
+            return proceso.getEstado() == EstadoProceso.NUEVO
+                    || !algunoInicio;
+        }
+
+        @Override
+        public void setValueAt(Object valor, int fila, int columna) {
+
+            if (columna != 8) {
+                super.setValueAt(valor, fila, columna);
+                return;
+            }
+
+            if (!isCellEditable(fila, columna)) {
+                return;
+            }
+
+            try {
+
+                int llegada = Integer.parseInt(
+                        valor.toString().trim());
+
+                if (llegada < 0) {
+                    throw new NumberFormatException();
+                }
+
+                int pid = Integer.parseInt(
+                        getValueAt(fila, 0).toString());
+
+                // Actualizar realmente el BCP.
+                controlador.configurarLlegada(pid, llegada);
+
+                // Actualizar la celda.
+                super.setValueAt(
+                        Integer.toString(llegada),
+                        fila,
+                        columna);
+
+                // Actualizar el detalle del BCP.
+                actualizarDetalle();
+
+            } catch (NumberFormatException ex) {
+
+                JOptionPane.showMessageDialog(
+                        MainWindow.this,
+                        "El tiempo de llegada debe ser "
+                                + "un número entero mayor o igual a cero.",
+                        "Tiempo de llegada inválido",
+                        JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    };
 
     private final JTextArea estadisticas = texto();
 
@@ -165,8 +252,8 @@ public class MainWindow extends JFrame {
      * Construye una interfaz tipo panel de control:
      *
      * izquierda -> procesos y BCP
-     * centro    -> CPU, ejecución y consola
-     * derecha   -> memoria, disco, archivos y estadísticas
+     * centro -> CPU, ejecución y consola
+     * derecha -> memoria, disco, archivos y estadísticas
      */
     private void construirInterfaz() {
 
@@ -261,7 +348,8 @@ public class MainWindow extends JFrame {
 
         reiniciar.addActionListener(e -> {
             detener();
-            if (controlador != null) controlador.reiniciar(conservar.isSelected());
+            if (controlador != null)
+                controlador.reiniciar(conservar.isSelected());
             nombres.clear();
             seleccionado = null;
             actualizar();
@@ -595,10 +683,10 @@ public class MainWindow extends JFrame {
     private void configurarTablas() {
 
         JTable[] tablas = {
-            tablaTrabajos,
-            tablaRam,
-            tablaAlmacenamiento,
-            tablaArchivos
+                tablaTrabajos,
+                tablaRam,
+                tablaAlmacenamiento,
+                tablaArchivos
         };
 
         for (JTable tabla : tablas) {
@@ -615,7 +703,6 @@ public class MainWindow extends JFrame {
         tablaTrabajos.setDefaultRenderer(Object.class, new RenderizadorProcesos());
         tablaRam.setDefaultRenderer(Object.class, new RenderizadorMemoria());
         tablaAlmacenamiento.setDefaultRenderer(Object.class, new RenderizadorAlmacenamiento());
-
 
         tablaRam.getColumnModel().getColumn(0).setPreferredWidth(70);
         tablaRam.getColumnModel().getColumn(1).setPreferredWidth(90);
@@ -638,6 +725,7 @@ public class MainWindow extends JFrame {
         });
 
         cargar.addActionListener(e -> elegirProgramas());
+
         disco.addActionListener(e -> elegirProgramaDisco());
         siguiente.addActionListener(e -> ejecutarTick());
 
@@ -721,11 +809,12 @@ public class MainWindow extends JFrame {
         chooser.setFileFilter(new FileNameExtensionFilter(
                 "Configuración Mini PC (*.properties, *.txt)", "properties", "txt"));
 
-        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return;
+        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION)
+            return;
 
         if (controlador != null
                 && (!controlador.getGestorProcesos().getListaTrabajos().isEmpty()
-                || controlador.getAlmacenamiento().getEspacioArchivosOcupado() > 0)
+                        || controlador.getAlmacenamiento().getEspacioArchivosOcupado() > 0)
                 && JOptionPane.showConfirmDialog(
                         this,
                         "La nueva configuración inicia otra simulación y borra los archivos simulados. ¿Continuar?",
@@ -746,7 +835,8 @@ public class MainWindow extends JFrame {
         JFileChooser chooser = selector("asm", "Programas ASM", raiz.resolve("codigo"));
         chooser.setMultiSelectionEnabled(true);
 
-        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return;
+        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION)
+            return;
 
         for (java.io.File archivo : chooser.getSelectedFiles()) {
             try {
@@ -757,13 +847,118 @@ public class MainWindow extends JFrame {
         }
     }
 
+    private void editarTiemposLlegada() {
+
+        if (controlador == null) {
+            return;
+        }
+
+        java.util.List<BCP> procesos = controlador.getGestorProcesos().getListaTrabajos();
+
+        if (procesos.isEmpty()) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Primero debes cargar los archivos ASM.",
+                    "Tiempos de llegada",
+                    JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        // No permitir modificaciones si ya comenzó una ejecución.
+        boolean ejecucionIniciada = continuarAutomatico;
+
+        for (BCP proceso : procesos) {
+            if (proceso.getHoraInicio() != null
+                    || proceso.getTiempoCPU() > 0) {
+                ejecucionIniciada = true;
+                break;
+            }
+        }
+
+        if (ejecucionIniciada) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "No puedes modificar los tiempos de llegada "
+                            + "después de iniciar la ejecución.",
+                    "Tiempos de llegada",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        // Guardar temporalmente los valores.
+        Map<Integer, Integer> nuevosTiempos = new HashMap<>();
+
+        for (BCP proceso : procesos) {
+
+            int pid = proceso.getPid();
+
+            String nombre = nombres.getOrDefault(
+                    pid, "Proceso " + pid);
+
+            while (true) {
+
+                String entrada = JOptionPane.showInputDialog(
+                        this,
+                        "Proceso: " + nombre
+                                + "\nPID: " + pid
+                                + "\nRáfaga: " + proceso.getRafaga()
+                                + " segundos"
+                                + "\n\nIngrese el tiempo de llegada:",
+                        String.valueOf(proceso.getTiempoLlegada()));
+
+                // Cancelar sin aplicar modificaciones parciales.
+                if (entrada == null) {
+                    return;
+                }
+
+                try {
+
+                    int llegada = Integer.parseInt(
+                            entrada.trim());
+
+                    if (llegada < 0) {
+                        throw new NumberFormatException();
+                    }
+
+                    nuevosTiempos.put(pid, llegada);
+                    break;
+
+                } catch (NumberFormatException ex) {
+
+                    JOptionPane.showMessageDialog(
+                            this,
+                            "Ingresa un número entero mayor o igual a 0.",
+                            "Valor incorrecto",
+                            JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        }
+
+        // Aplicar las configuraciones.
+        for (Map.Entry<Integer, Integer> entrada : nuevosTiempos.entrySet()) {
+
+            controlador.configurarLlegada(
+                    entrada.getKey(),
+                    entrada.getValue());
+        }
+
+        actualizar();
+
+        JOptionPane.showMessageDialog(
+                this,
+                "Los tiempos de llegada se guardaron correctamente.",
+                "Configuración completada",
+                JOptionPane.INFORMATION_MESSAGE);
+    }
+
     private void elegirProgramaDisco() {
 
         String nombre = JOptionPane.showInputDialog(
                 this,
                 "Nombre del programa guardado en el disco simulado:");
 
-        if (nombre == null) return;
+        if (nombre == null)
+            return;
 
         try {
             BCP proceso = controlador.cargarProgramaDesdeDisco(nombre.trim());
@@ -780,22 +975,8 @@ public class MainWindow extends JFrame {
 
     private boolean hayEjecutable() {
 
-        if (controlador == null) return false;
-
-        if (controlador.getProcesoActual() != null
-                || !controlador.getGestorProcesos().getColaPreparados().isEmpty()) {
-            return true;
-        }
-
-        for (BCP bcp : controlador.getGestorProcesos().getListaTrabajos()) {
-
-            if (bcp.getEstado() == EstadoProceso.PREPARADO_SUSPENDIDO
-                    && controlador.getGestorProcesos().hayEspacioParaPrograma(bcp.getTamañoPrograma())) {
-                return true;
-            }
-        }
-
-        return false;
+        return controlador != null
+                && controlador.puedeAvanzar();
     }
 
     private void ejecutarTick() {
@@ -803,8 +984,10 @@ public class MainWindow extends JFrame {
         try {
             controlador.ejecutarSiguiente();
 
-            if (controlador.simulacionFinalizada()) detener();
-            else if (!hayEjecutable()) reloj.stop();
+            if (controlador.simulacionFinalizada())
+                detener();
+            else if (!hayEjecutable())
+                reloj.stop();
 
             actualizar();
 
@@ -821,7 +1004,8 @@ public class MainWindow extends JFrame {
             controlador.recibirEntradaTeclado(entrada.getText());
             entrada.setText("");
 
-            if (continuarAutomatico) reloj.start();
+            if (continuarAutomatico)
+                reloj.start();
 
             actualizar();
 
@@ -892,7 +1076,8 @@ public class MainWindow extends JFrame {
         int usuarioOcupado = 0;
 
         for (int i = controlador.getInicioUsuario(); i < controlador.getSizeMemoria(); i++) {
-            if (controlador.getMemoria().leer(i) != null) usuarioOcupado++;
+            if (controlador.getMemoria().leer(i) != null)
+                usuarioOcupado++;
         }
 
         int discoOcupado = controlador.getAlmacenamiento().getEspacioArchivosOcupado();
@@ -910,7 +1095,6 @@ public class MainWindow extends JFrame {
         barraDisco.setMaximum(Math.max(discoTotal, 1));
         barraDisco.setValue(Math.min(discoOcupado, discoTotal));
         barraDisco.setString(discoTotal == 0 ? "0%" : (discoOcupado * 100 / discoTotal) + "%");
-
 
         CPU c = controlador.getCPU();
         BCP actual = controlador.getProcesoActual();
@@ -939,17 +1123,20 @@ public class MainWindow extends JFrame {
             String ubicacion = p.getEstado() == EstadoProceso.FINALIZADO
                     ? "Liberada"
                     : controlador.getGestorMemoriaVirtual().estaEnMemoriaVirtual(p)
-                    ? "Virtual @" + controlador.getGestorMemoriaVirtual().getDireccionVirtual(p)
-                    : "RAM";
+                            ? "Virtual @" + controlador.getGestorMemoriaVirtual().getDireccionVirtual(p)
+                            : "RAM";
 
-            trabajos.addRow(new String[]{
-                Integer.toString(p.getPid()),
-                nombres.getOrDefault(p.getPid(), ""),
-                p.getEstado().toString(),
-                ubicacion,
-                Integer.toString(p.getInicioPrograma()),
-                Integer.toString(p.getTamañoPrograma()),
-                Integer.toString(p.getTiempoCPU())
+            trabajos.addRow(new String[] {
+                    Integer.toString(p.getPid()),
+                    nombres.getOrDefault(p.getPid(), ""),
+                    p.getEstado().toString(),
+                    ubicacion,
+                    Integer.toString(p.getInicioPrograma()),
+                    Integer.toString(p.getTamañoPrograma()),
+                    Integer.toString(p.getTiempoCPU()),
+                    Integer.toString(p.getRafaga()),
+                    Integer.toString(p.getTiempoLlegada()),
+                    Integer.toString(p.getTiempoRestante())
             });
 
             resumenEstadisticas.append("PROCESO PID ").append(p.getPid())
@@ -981,7 +1168,8 @@ public class MainWindow extends JFrame {
 
         actualizando = false;
         String contenidoEstadisticas = resumenEstadisticas.length() == 0
-                ? "Todavía no hay procesos cargados." : resumenEstadisticas.toString();
+                ? "Todavía no hay procesos cargados."
+                : resumenEstadisticas.toString();
         if (!estadisticas.getText().equals(contenidoEstadisticas)) {
             int posicion = estadisticas.getCaretPosition();
             estadisticas.setText(contenidoEstadisticas);
@@ -995,13 +1183,13 @@ public class MainWindow extends JFrame {
             String contenido = i < controlador.getInicioUsuario()
                     ? controlador.getMemoria().obtenerContenido(i)
                     : controlador.getMemoria().leer(i) == null
-                    ? ""
-                    : controlador.getMemoria().leer(i).getTextoOriginal();
+                            ? ""
+                            : controlador.getMemoria().leer(i).getTextoOriginal();
 
-            ram.addRow(new String[]{
-                Integer.toString(i),
-                i < controlador.getInicioUsuario() ? "Kernel" : "Usuario",
-                contenido
+            ram.addRow(new String[] {
+                    Integer.toString(i),
+                    i < controlador.getInicioUsuario() ? "Kernel" : "Usuario",
+                    contenido
             });
         }
 
@@ -1011,14 +1199,14 @@ public class MainWindow extends JFrame {
 
         for (int i = 0; i < a.getSize(); i++) {
 
-            almacenamiento.addRow(new String[]{
-                Integer.toString(i),
-                i < a.getTamañoIndice()
-                        ? "Índice"
-                        : i < a.getInicioMemoriaVirtual()
-                        ? "Archivos"
-                        : "Virtual",
-                a.obtenerContenido(i)
+            almacenamiento.addRow(new String[] {
+                    Integer.toString(i),
+                    i < a.getTamañoIndice()
+                            ? "Índice"
+                            : i < a.getInicioMemoriaVirtual()
+                                    ? "Archivos"
+                                    : "Virtual",
+                    a.obtenerContenido(i)
             });
         }
 
@@ -1026,20 +1214,21 @@ public class MainWindow extends JFrame {
 
         for (ArchivoSimulado f : a.listarArchivos()) {
 
-            archivos.addRow(new String[]{
-                f.getNombre(),
-                Integer.toString(f.getDireccionInicio()),
-                Integer.toString(f.getTamaño()),
-                Integer.toString(f.getEspacioOcupado()),
-                f.esPrograma() ? "Programa ASM" : "Texto"
+            archivos.addRow(new String[] {
+                    f.getNombre(),
+                    Integer.toString(f.getDireccionInicio()),
+                    Integer.toString(f.getTamaño()),
+                    Integer.toString(f.getEspacioOcupado()),
+                    f.esPrograma() ? "Programa ASM" : "Texto"
             });
         }
 
         java.util.List<String> salidas = controlador.getGestorInterrupciones().getSalidas();
         java.util.List<String> errores = controlador.getErroresEjecucion();
         String contenidoMonitor = String.join("\n", salidas);
-        if (!errores.isEmpty()) contenidoMonitor += (contenidoMonitor.isEmpty() ? "" : "\n\n")
-                + "Errores de ejecución:\n" + String.join("\n", errores);
+        if (!errores.isEmpty())
+            contenidoMonitor += (contenidoMonitor.isEmpty() ? "" : "\n\n")
+                    + "Errores de ejecución:\n" + String.join("\n", errores);
         if (!pantalla.getText().equals(contenidoMonitor)) {
             pantalla.setText(contenidoMonitor);
             pantalla.setCaretPosition(pantalla.getDocument().getLength());
@@ -1098,16 +1287,23 @@ public class MainWindow extends JFrame {
             Component componente = super.getTableCellRendererComponent(
                     table, value, isSelected, hasFocus, row, column);
 
-            if (isSelected) return componente;
+            if (isSelected)
+                return componente;
 
             String estadoProceso = table.getValueAt(row, 2).toString();
 
-            if (estadoProceso.equals("EJECUCION")) componente.setBackground(VERDE_SUAVE);
-            else if (estadoProceso.equals("PREPARADO")) componente.setBackground(AZUL_SUAVE);
-            else if (estadoProceso.equals("BLOQUEADO")) componente.setBackground(ROJO_SUAVE);
-            else if (estadoProceso.contains("SUSPENDIDO")) componente.setBackground(MORADO_SUAVE);
-            else if (estadoProceso.equals("FINALIZADO")) componente.setBackground(GRIS_SUAVE);
-            else componente.setBackground(Color.WHITE);
+            if (estadoProceso.equals("EJECUCION"))
+                componente.setBackground(VERDE_SUAVE);
+            else if (estadoProceso.equals("PREPARADO"))
+                componente.setBackground(AZUL_SUAVE);
+            else if (estadoProceso.equals("BLOQUEADO"))
+                componente.setBackground(ROJO_SUAVE);
+            else if (estadoProceso.contains("SUSPENDIDO"))
+                componente.setBackground(MORADO_SUAVE);
+            else if (estadoProceso.equals("FINALIZADO"))
+                componente.setBackground(GRIS_SUAVE);
+            else
+                componente.setBackground(Color.WHITE);
 
             componente.setForeground(TEXTO);
 
@@ -1132,7 +1328,8 @@ public class MainWindow extends JFrame {
             Component componente = super.getTableCellRendererComponent(
                     table, value, isSelected, hasFocus, row, column);
 
-            if (isSelected) return componente;
+            if (isSelected)
+                return componente;
 
             String area = table.getValueAt(row, 1).toString();
 
@@ -1160,13 +1357,17 @@ public class MainWindow extends JFrame {
             Component componente = super.getTableCellRendererComponent(
                     table, value, isSelected, hasFocus, row, column);
 
-            if (isSelected) return componente;
+            if (isSelected)
+                return componente;
 
             String area = table.getValueAt(row, 1).toString();
 
-            if (area.equals("Índice")) componente.setBackground(AZUL_SUAVE);
-            else if (area.equals("Virtual")) componente.setBackground(MORADO_SUAVE);
-            else componente.setBackground(Color.WHITE);
+            if (area.equals("Índice"))
+                componente.setBackground(AZUL_SUAVE);
+            else if (area.equals("Virtual"))
+                componente.setBackground(MORADO_SUAVE);
+            else
+                componente.setBackground(Color.WHITE);
 
             componente.setForeground(TEXTO);
 
