@@ -336,8 +336,7 @@ public class Executor {
 
         BCP proceso = obtenerProcesoActual();
 
-        if (instruccion.getParametros().size()
-                > proceso.getPila().getCapacidad() - proceso.getPila().getCantidad()) {
+        if (instruccion.getParametros().size() > proceso.getPila().getCapacidad() - proceso.getPila().getCantidad()) {
             throw new IllegalStateException("Desbordamiento de pila en PARAM: necesita "
                     + instruccion.getParametros().size() + " posiciones y quedan "
                     + (proceso.getPila().getCapacidad() - proceso.getPila().getCantidad()) + ".");
@@ -382,10 +381,13 @@ public class Executor {
      */
     private BCP obtenerProcesoActual() {
 
-        BCP proceso = gestorProcesos.getProcesoActual();
+        // Cada CPU debe consultar su propio proceso.
+        BCP proceso = gestorProcesos.getProcesoActual(cpu.getId());
 
         if (proceso == null) {
-            throw new IllegalStateException("No existe un proceso actualmente en ejecución.");
+            throw new IllegalStateException(
+                    "No existe un proceso actualmente en ejecución en CPU "
+                            + cpu.getId());
         }
 
         return proceso;

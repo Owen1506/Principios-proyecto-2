@@ -66,6 +66,7 @@ public class BCP {
     private int tiempoRestante;
     private int tiempoInicioSimulado;
     private int tiempoFinalSimulado;
+    private int cpuAsignada = -1;
 
     public String getMotivoError() {
         return motivoError;
@@ -112,6 +113,7 @@ public class BCP {
             case 21 -> "ARCHIVOS_ABIERTOS = " + archivosAbiertos;
             case 22 -> "ZERO_FLAG = " + zeroFlag;
             case 23 -> "MOTIVO_ERROR = " + motivoError;
+            case 24 -> "CPU_ASIGNADA = " + cpuAsignada;
             default -> throw new IllegalArgumentException("Posición de atributo del BCP inválida: " + desplazamiento);
         };
         return "PID " + pid + " | " + atributo;
@@ -426,6 +428,24 @@ public class BCP {
         if (!archivosAbiertos.contains(nombreArchivo)) {
             archivosAbiertos.add(nombreArchivo);
         }
+    }
+
+
+    public int getCpuAsignada() {
+        return cpuAsignada;
+    }
+
+    public void setCpuAsignada(int cpuAsignada) {
+
+        if (cpuAsignada < -1
+                || cpuAsignada == 0
+                || cpuAsignada > 5) {
+
+            throw new IllegalArgumentException(
+                    "La CPU asignada debe estar entre 1 y 5, o ser -1.");
+        }
+
+        this.cpuAsignada = cpuAsignada;
     }
 
     public void cerrarArchivo(String nombreArchivo) {
