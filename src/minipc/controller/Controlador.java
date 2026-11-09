@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Set;
 import minipc.config.ConfigLoader;
 import minipc.config.Configuracion;
+import minipc.model.AlgoritmoPlanificacion;
 import minipc.model.Almacenamiento;
 import minipc.model.BCP;
 import minipc.model.CPU;
@@ -26,7 +27,9 @@ import minipc.services.FCFS;
 import minipc.services.GestorInterrupciones;
 import minipc.services.GestorMemoriaVirtual;
 import minipc.services.GestorProcesos;
+import minipc.services.SPN;
 import minipc.services.SistemaArchivos;
+//import minipc.services.SRT;
 
 /**
  * Coordina los principales componentes de la Mini PC.
@@ -43,7 +46,8 @@ public class Controlador {
     private AsignadorProcesosCPU asignadorProcesosCPU;
     private GestorProcesos gestorProcesos;
     private GestorMemoriaVirtual gestorMemoriaVirtual;
-    private FCFS fcfs;
+    private AlgoritmoPlanificacion planificador;
+    private int quantumRR = 3;
     private Despachador despachador;
     private SistemaArchivos sistemaArchivos;
     private GestorInterrupciones gestorInterrupciones;
@@ -90,27 +94,36 @@ public class Controlador {
                 ? "FCFS"
                 : configuracion.getAlgoritmo();
 
-        this.fcfs = switch (algoritmo) {
-
-            case "FCFS" -> new FCFS(gestorProcesos);
-
-            default -> throw new IllegalArgumentException(
-                    "Algoritmo no implementado: " + algoritmo);
-        };
+        this.planificador = crearPlanificador(
+                TipoAlgoritmo.valueOf(algoritmo));
 
         // Crear un único sistema de archivos compartido.
         this.sistemaArchivos = new SistemaArchivos(
                 almacenamiento,
                 gestorProcesos);
 
-        /*
-         * Crear los núcleos.
-         *
-         * Este método también establece las referencias
-         * principales cpu, despachador, gestorInterrupciones
-         * y executor a partir del primer núcleo.
-         */
         inicializarNucleos(1);
+    }
+
+    private AlgoritmoPlanificacion crearPlanificador(
+            TipoAlgoritmo tipo) {
+
+        return switch (tipo) {
+
+            case FCFS -> new FCFS(gestorProcesos);
+
+            case SPN -> new SPN(gestorProcesos);
+
+            // case SRT -> new SRT(gestorProcesos);
+
+            // case RR -> new RoundRobin(
+            // gestorProcesos,
+            // quantumRR);
+
+            default -> throw new UnsupportedOperationException(
+                    "El algoritmo " + tipo
+                            + " todavía no está implementado.");
+        };
     }
 
     private void inicializarNucleos(int cantidad) {
@@ -128,7 +141,7 @@ public class Controlador {
             Despachador nuevoDespachador = new Despachador(
                     procesador,
                     gestorProcesos,
-                    fcfs);
+                    planificador);
 
             GestorInterrupciones nuevasInterrupciones = new GestorInterrupciones(
                     procesador,
@@ -157,12 +170,6 @@ public class Controlador {
         executor = primero.getExecutor();
     }
 
-    /**
-     * Carga un programa en memoria principal y crea su proceso.
-     *
-     * El programa se agrega sin eliminar los procesos que ya se
-     * encuentran cargados.
-     */
     public BCP cargarPrograma(List<Instruccion> programa) {
         return cargarPrograma(programa, 0);
     }
@@ -273,29 +280,6 @@ public class Controlador {
         }
     }
 
-    /**
-     *
-     *
-     * Ejecuta un
-     * segundo de simulación.**
-     * Durante cada tick:*1.
-     * Se verifican
-     * los procesos
-     * que llegaron.*2.
-     * Se revisan
-     * los procesos suspendidos.*3.
-     * Todas las
-     * CPU ejecutan
-     * un paso.*4.
-     * Cada CPU
-     * registra su
-     * tiempo ocupado
-     * u ocioso.*5.
-     * El reloj
-     * global avanza
-     * un segundo.
-     */
-
     public void ejecutarSiguiente() {
 
         // No continuar si terminaron todos los procesos.
@@ -344,20 +328,14 @@ public class Controlador {
                             + "antes de iniciar la ejecución.");
         }
 
-        // Validación temporal mientras se implementan
-        // los demás algoritmos.
-        if (algoritmoSeleccionado != TipoAlgoritmo.FCFS) {
+        if (planificador == null) {
 
-            throw new UnsupportedOperationException(
-                    "El algoritmo " + algoritmoSeleccionado
-                            + " todavía no está implementado.");
+            throw new IllegalStateException(
+                    "No se configuró un planificador.");
         }
     }
 
-    /**
-     * Comprueba que un proceso no esté ejecutándose
-     * simultáneamente en más de una CPU.
-     */
+    // valida que no se ejecute el proceso en mas de un cpu
     private void verificarProcesosEnCPU() {
 
         Set<Integer> procesosEjecutando = new HashSet<>();
@@ -385,19 +363,6 @@ public class Controlador {
         }
     }
 
-    /**
-     * Ejecuta un paso del procesador utilizando FCFS.
-     *
-     * Conserva la lógica de ejecución de instrucciones,
-     * interrupciones, cambios de contexto y finalización.
-     */
-    /**
-     * Ejecuta un tick de una CPU específica.
-     *
-     * @param nucleo CPU que ejecutará el tick.
-     * @return true si consumió un segundo de CPU,
-     *         false si permaneció ociosa.
-     */
     private boolean ejecutarPasoCPU(ContextoNucleo nucleo) {
 
         // Obtener los componentes de esta CPU.
@@ -406,36 +371,43 @@ public class Controlador {
         int cpuId = procesador.getId();
 
         Despachador plan = nucleo.getDespachador();
+        BCP anterior = gestorProcesos.getProcesoActual(cpuId);
 
-        /*
-         * 1. DESPACHO
-         *
-         * Si la CPU está libre, buscar un proceso preparado.
-         */
+        if (anterior != null
+                && planificador.debeExpropiar(cpuId, anterior)) {
+
+            /*
+             * Guardar el progreso de la instrucción
+             * que se está ejecutando.
+             */
+            nucleo.guardarInstruccionInterrumpida(
+                    anterior.getPid());
+
+            plan.expropiarActual();
+        }
+
         if (gestorProcesos.getProcesoActual(cpuId) == null) {
 
-            if (!fcfs.hayProcesosPreparados(cpuId)) {
+            if (!planificador.hayProcesosPreparados(cpuId)) {
 
                 return false;
             }
 
-            plan.despacharSiguiente();
+            BCP asignado = plan.despacharSiguiente();
 
-            nucleo.reiniciarInstruccion();
+            if (asignado != null) {
+
+                nucleo.restaurarInstruccionInterrumpida(
+                        asignado.getPid());
+            }
         }
 
-        /*
-         * 2. OBTENER PROCESO ACTUAL
-         */
         BCP proceso = gestorProcesos.getProcesoActual(cpuId);
 
         if (proceso == null) {
             return false;
         }
 
-        /*
-         * 3. VERIFICAR EL PROGRAM COUNTER
-         */
         if (procesador.getPC() > proceso.getFinPrograma()) {
 
             plan.guardarContextoActual();
@@ -460,11 +432,6 @@ public class Controlador {
             return false;
         }
 
-        /*
-         * 4. FETCH
-         *
-         * Obtener la siguiente instrucción del programa.
-         */
         if (nucleo.getInstruccionActual() == null) {
 
             Instruccion instruccion = memoria.leer(procesador.getPC());
@@ -492,17 +459,11 @@ public class Controlador {
             procesador.setIR(instruccion.getTextoOriginal());
         }
 
-        /*
-         * 5. CONSUMIR UN SEGUNDO DE CPU
-         */
         gestorProcesos.incrementarTiempoCPU(cpuId);
-
+        planificador.alConsumirTick(cpuId, proceso);
         nucleo.setTicksRestantes(
                 nucleo.getTicksRestantes() - 1);
 
-        /*
-         * Si todavía quedan ticks, guardar el contexto.
-         */
         if (nucleo.getTicksRestantes() > 0) {
 
             proceso.guardarContexto(procesador);
@@ -510,11 +471,6 @@ public class Controlador {
             return true;
         }
 
-        /*
-         * 6. EXECUTE
-         *
-         * Ejecutar el efecto de la instrucción.
-         */
         boolean pcModificado;
 
         try {
@@ -526,10 +482,6 @@ public class Controlador {
                 | IllegalStateException
                 | ArithmeticException error) {
 
-            /*
-             * No finalizar accidentalmente otro proceso
-             * si ocurrió un cambio de contexto.
-             */
             if (gestorProcesos.getProcesoActual(cpuId) == proceso) {
 
                 finalizarPorError(nucleo, proceso, error);
@@ -546,17 +498,8 @@ public class Controlador {
             return true;
         }
 
-        /*
-         * 7. REINICIAR CONTROL DE INSTRUCCIÓN
-         */
         nucleo.reiniciarInstruccion();
 
-        /*
-         * 8. COMPROBAR CAMBIO DE PROCESO
-         *
-         * Una interrupción pudo finalizar o bloquear
-         * el proceso que estaba ejecutándose.
-         */
         if (gestorProcesos.getProcesoActual(cpuId) != proceso) {
 
             intentarReactivarSuspendidos();
@@ -564,24 +507,13 @@ public class Controlador {
             return true;
         }
 
-        /*
-         * 9. ACTUALIZAR PROGRAM COUNTER
-         *
-         * Los saltos pueden modificar directamente el PC.
-         */
         if (!pcModificado) {
 
             procesador.incrementarPC();
         }
 
-        /*
-         * 10. GUARDAR CONTEXTO
-         */
         proceso.guardarContexto(procesador);
 
-        /*
-         * 11. VERIFICAR FINALIZACIÓN
-         */
         if (procesador.getPC() > proceso.getFinPrograma()) {
 
             gestorProcesos.finalizarProcesoActual(cpuId);
@@ -593,14 +525,7 @@ public class Controlador {
         return true;
     }
 
-    /*
-     * Ejecutar el efecto de la instrucción una vez
-     * consumidos los ticks correspondientes.
-     */
-    /*
-     * Si todos los procesos tienen una llegada posterior a cero, todavía no habrá
-     * ninguno en READY.
-     */
+    // Indica si existe al menos un proceso capaz de utilizar la CPU.
     public boolean puedeAvanzar() {
 
         for (ContextoNucleo nucleo : nucleos) {
@@ -672,13 +597,6 @@ public class Controlador {
         intentarReactivarSuspendidos();
     }
 
-    /**
-     * Ejecuta automáticamente mientras existan procesos capaces
-     * de utilizar la CPU.
-     *
-     * Si todos los procesos quedan bloqueados esperando entrada,
-     * el método se detiene para permitir interacción con el usuario.
-     */
     public void ejecutarTodo() {
 
         while (!simulacionFinalizada() && puedeAvanzar()) {
@@ -686,14 +604,10 @@ public class Controlador {
         }
     }
 
-    /**
-     * Entrega una entrada de teclado al proceso que está esperando
-     * una INT 09H.
-     */
     public BCP recibirEntradaTeclado(String entrada) {
         BCP proceso = gestorInterrupciones.recibirEntradaTeclado(entrada);
         intentarReactivarSuspendidos();
-        if (gestorProcesos.getProcesoActual() == null && fcfs.hayProcesosPreparados()) {
+        if (gestorProcesos.getProcesoActual() == null) {
             despachador.despacharSiguiente();
         }
         return proceso;
@@ -715,17 +629,10 @@ public class Controlador {
         } while (procesoReactivado);
     }
 
-    /**
-     * Indica si ya no existen procesos activos.
-     */
     public boolean simulacionFinalizada() {
         return gestorProcesos.getCantidadProcesosActivos() == 0;
     }
 
-    /**
-     * La suspensión de bloqueados es explícita; no existe una política de desalojo
-     * automático.
-     */
     public void suspenderProceso(int pid) {
         BCP proceso = gestorProcesos.buscarProceso(pid);
         gestorMemoriaVirtual.suspenderProceso(proceso);
@@ -778,7 +685,16 @@ public class Controlador {
             }
         }
 
+        AlgoritmoPlanificacion nuevo = crearPlanificador(algoritmo);
+        this.planificador = nuevo;
+
         this.algoritmoSeleccionado = algoritmo;
+        for (ContextoNucleo nucleo : nucleos) {
+
+            nucleo.getDespachador()
+                    .establecerPlanificador(nuevo);
+        }
+
     }
 
     public void configurarLlegada(int pid, int llegada) {
@@ -806,10 +722,6 @@ public class Controlador {
                     "Solo se permiten entre 1 y 5 CPU.");
         }
 
-        /*
-         * Impedir modificaciones después
-         * de iniciar la simulación.
-         */
         if (tiempoSimulado != 0
                 || gestorProcesos.getListaTrabajos().stream()
                         .anyMatch(p -> p.getHoraInicio() != null)) {
@@ -819,12 +731,6 @@ public class Controlador {
                             + "la simulación.");
         }
 
-        /*
-         * Eliminar las asignaciones anteriores.
-         *
-         * Esto solamente se permite porque todavía
-         * no ha comenzado la ejecución.
-         */
         for (BCP proceso : gestorProcesos.getListaTrabajos()) {
 
             if (proceso.getEstado() != EstadoProceso.FINALIZADO) {
@@ -833,60 +739,27 @@ public class Controlador {
             }
         }
 
-        /*
-         * Recrear los núcleos y el asignador
-         * con la nueva cantidad de CPU.
-         */
         inicializarNucleos(cantidad);
 
-        /*
-         * Distribuir nuevamente los procesos
-         * utilizando las reglas del asignador.
-         */
         for (BCP proceso : gestorProcesos.getListaTrabajos()) {
 
             asignarSiHayCupo(proceso);
         }
     }
 
-    /**
-     * Asigna un proceso a una CPU siempre que
-     * exista capacidad disponible.
-     *
-     * Si todas las CPU alcanzaron el máximo de
-     * cinco procesos, el proceso permanecerá
-     * temporalmente sin asignación.
-     *
-     * El usuario deberá configurar suficientes
-     * CPU antes de iniciar la ejecución.
-     *
-     * @param proceso proceso que debe ser asignado
-     */
     private void asignarSiHayCupo(BCP proceso) {
 
-        /*
-         * No volver a asignar procesos que
-         * ya tienen CPU o finalizaron.
-         */
         if (proceso.getEstado() == EstadoProceso.FINALIZADO
                 || proceso.getCpuAsignada() != -1) {
 
             return;
         }
 
-        /*
-         * Comprobar si existe al menos
-         * una CPU con espacio disponible.
-         */
         for (int cpuId = 1; cpuId <= nucleos.size(); cpuId++) {
 
             if (asignadorProcesosCPU
                     .getCantidadProcesos(cpuId) < 5) {
 
-                /*
-                 * El asignador decide cuál CPU
-                 * recibirá el proceso.
-                 */
                 asignadorProcesosCPU
                         .asignarProceso(proceso);
 
@@ -894,12 +767,6 @@ public class Controlador {
             }
         }
 
-        /*
-         * No existe espacio disponible.
-         *
-         * El proceso permanece sin CPU hasta que
-         * el usuario configure más procesadores.
-         */
     }
 
     private void verificarAsignacionesCompletas() {
@@ -915,6 +782,37 @@ public class Controlador {
                                 + " no tiene CPU asignada. "
                                 + "Configure más CPU antes de ejecutar.");
             }
+        }
+    }
+
+    public int getQuantumRR() {
+
+        return quantumRR;
+    }
+
+    public void configurarQuantumRR(int quantum) {
+
+        if (quantum < 1) {
+
+            throw new IllegalArgumentException(
+                    "El quantum debe ser al menos 1.");
+        }
+
+        if (tiempoSimulado != 0
+                || gestorProcesos.getListaTrabajos()
+                        .stream()
+                        .anyMatch(proceso -> proceso.getHoraInicio() != null)) {
+
+            throw new IllegalStateException(
+                    "No se puede cambiar el quantum "
+                            + "después de iniciar la ejecución.");
+        }
+
+        quantumRR = quantum;
+
+        if (algoritmoSeleccionado == TipoAlgoritmo.RR) {
+
+            configurarAlgoritmo(TipoAlgoritmo.RR);
         }
     }
 

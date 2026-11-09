@@ -288,17 +288,31 @@ public class GestorProcesos {
         procesosEnEjecucion.put(cpuId, bcp);
     }
 
-    /**
-     * Desbloquea un proceso cuando termina el evento que esperaba.
-     *
-     * Si está en memoria principal:
-     * BLOQUEADO -> PREPARADO.
-     *
-     * Si continúa en memoria virtual:
-     * BLOQUEADO_SUSPENDIDO -> PREPARADO_SUSPENDIDO.
-     *
-     * @param bcp proceso que terminó de esperar el evento
-     */
+    public void expropiarProcesoActual(int cpuId) {
+
+        BCP proceso = procesosEnEjecucion.get(cpuId);
+
+        if (proceso == null
+                || proceso.getEstado() != EstadoProceso.EJECUCION) {
+
+            throw new IllegalStateException(
+                    "No existe un proceso en ejecución en CPU "
+                            + cpuId + ".");
+        }
+
+        procesosEnEjecucion.remove(cpuId);
+
+        proceso.setEstado(EstadoProceso.PREPARADO);
+
+        if (!colaPreparados.contains(proceso)) {
+
+            colaPreparados.add(proceso);
+        }
+    }
+
+    // se encarga de desbloquear un proceso que se encuentra bloqueado y lo pasa a
+    // preparado, si el proceso se encuentra bloqueado suspendido lo pasa a
+    // preparado suspendido
     public void desbloquearProceso(BCP bcp) {
 
         validarProceso(bcp);
@@ -323,12 +337,9 @@ public class GestorProcesos {
         throw new IllegalStateException("El proceso no se encuentra bloqueado.");
     }
 
-    /**
-     * Finaliza el proceso que actualmente utiliza la CPU.
-     *
-     * Se registra la hora final y se libera la memoria utilizada
-     * por el programa y su BCP.
-     */
+    // finaliza el proceso que actualmente se encuentra en ejecución, liberando la
+    // memoria del programa y el BCP de memoria, además de cerrar los archivos
+    // abiertos por el proceso
     public void finalizarProcesoActual() {
         finalizarProcesoActual(1);
     }
@@ -344,27 +355,21 @@ public class GestorProcesos {
 
         BCP bcp = procesoActual;
 
-        // Actualizar estado.
         bcp.setEstado(EstadoProceso.FINALIZADO);
 
-        // Registrar finalización.
         bcp.setHoraFinal(LocalDateTime.now());
 
         bcp.registrarFinSimulado(instanteSimulado + 1);
 
-        // Cerrar archivos.
         bcp.getArchivosAbiertos().clear();
 
-        // Retirar el proceso de las colas.
         colaPreparados.remove(bcp);
         bloqueados.remove(bcp);
 
-        // Liberar la memoria del programa.
         memoria.liberarPrograma(
                 bcp.getInicioPrograma(),
                 bcp.getTamañoPrograma());
 
-        // Liberar el BCP de memoria.
         int direccionBCP = bcp.getDireccionBCP();
 
         if (direccionBCP != -1) {
@@ -376,7 +381,6 @@ public class GestorProcesos {
 
         bcp.setDireccionSiguienteBCP(-1);
 
-        // Liberar solamente la CPU correspondiente.
         procesosEnEjecucion.remove(cpuId);
         if (asignadorProcesosCPU != null) {
 
@@ -385,12 +389,8 @@ public class GestorProcesos {
         actualizarEnlacesBCP();
     }
 
-    /**
-     * Incrementa un segundo simulado de CPU al proceso actual.
-     *
-     * Este método se utilizará por cada clic/tick en el que el
-     * proceso esté utilizando la CPU.
-     */
+    // Incrementa el contador de tiempo de CPU del proceso que actualmente se
+    // encuentra en ejecución.
     public void incrementarTiempoCPU() {
         incrementarTiempoCPU(1);
     }
@@ -404,12 +404,8 @@ public class GestorProcesos {
         }
     }
 
-    /**
-     * Busca un proceso mediante su PID.
-     *
-     * @param pid identificador del proceso
-     * @return BCP correspondiente o null si no existe
-     */
+    // busca un proceso por su PID dentro de la lista de trabajos del gestor.
+    // Devuelve el BCP correspondiente si se encuentra, o null si no existe.
     public BCP buscarProceso(int pid) {
 
         for (BCP bcp : listaTrabajos) {
@@ -422,9 +418,6 @@ public class GestorProcesos {
         return null;
     }
 
-    /**
-     * Cuenta los procesos que todavía no han finalizado.
-     */
     private int contarProcesosActivos() {
 
         int cantidad = 0;
@@ -439,12 +432,9 @@ public class GestorProcesos {
         return cantidad;
     }
 
-    /**
-     * Actualiza las direcciones que enlazan un BCP con el siguiente.
-     *
-     * Solo se toman en cuenta BCP que actualmente se encuentren
-     * almacenados en memoria principal.
-     */
+    // Actualiza los enlaces de los BCP en memoria para reflejar la lista de
+    // trabajos actual. Esto asegura que cada BCP apunte al siguiente BCP en la
+    // lista, o -1 si es el último.
     private void actualizarEnlacesBCP() {
 
         BCP anterior = null;
@@ -464,9 +454,8 @@ public class GestorProcesos {
         }
     }
 
-    /**
-     * Verifica que el proceso recibido exista dentro del gestor.
-     */
+    // Valida que el proceso no sea null y que pertenezca a la lista de trabajos del
+    // gestor.
     private void validarProceso(BCP bcp) {
 
         if (bcp == null) {
@@ -512,13 +501,7 @@ public class GestorProcesos {
         this.instanteSimulado = instanteSimulado;
     }
 
-    /**
-     * Comprueba qué procesos alcanzaron su tiempo de llegada.
-     *
-     * Los procesos en RAM pasan de NUEVO a PREPARADO.
-     * Los procesos en memoria virtual pasan de NUEVO
-     * a PREPARADO_SUSPENDIDO.
-     */
+    
     public void prepararProcesosLlegados(int tiempoActual) {
 
         for (BCP proceso : listaTrabajos) {
