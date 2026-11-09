@@ -20,9 +20,9 @@ public class Despachador {
     /**
      * Crea un nuevo despachador.
      *
-     * @param cpu CPU de la Mini PC
+     * @param cpu            CPU de la Mini PC
      * @param gestorProcesos gestor encargado de administrar los procesos
-     * @param planificador planificador FCFS
+     * @param planificador   planificador FCFS
      */
     public Despachador(CPU cpu, GestorProcesos gestorProcesos, FCFS planificador) {
 
@@ -35,7 +35,8 @@ public class Despachador {
         }
 
         if (planificador == null) {
-            throw new IllegalArgumentException("El planificador no puede ser null.");
+            throw new IllegalArgumentException(
+                    "El planificador no puede ser null.");
         }
 
         this.cpu = cpu;
@@ -51,7 +52,7 @@ public class Despachador {
      */
     public void guardarContextoActual() {
 
-        BCP actual = gestorProcesos.getProcesoActual();
+        BCP actual = gestorProcesos.getProcesoActual(cpu.getId());
 
         if (actual != null) {
             actual.guardarContexto(cpu);
@@ -67,11 +68,12 @@ public class Despachador {
      */
     public BCP despacharSiguiente() {
 
-        if (gestorProcesos.getProcesoActual() != null) {
+        if (gestorProcesos.getProcesoActual(cpu.getId()) != null) {
             throw new IllegalStateException("La CPU ya está siendo utilizada por un proceso.");
         }
 
-        BCP siguiente = planificador.seleccionarSiguiente();
+        BCP siguiente = planificador.seleccionarSiguiente(
+                cpu.getId());
 
         if (siguiente == null) {
             cpu.reiniciarCPU();
@@ -79,7 +81,9 @@ public class Despachador {
         }
 
         siguiente.restaurarContexto(cpu);
-        gestorProcesos.iniciarEjecucion(siguiente);
+        gestorProcesos.iniciarEjecucion(
+                cpu.getId(),
+                siguiente);
 
         return siguiente;
     }
