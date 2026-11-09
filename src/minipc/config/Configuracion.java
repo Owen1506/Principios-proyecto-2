@@ -1,5 +1,7 @@
 package minipc.config;
 
+import minipc.model.TipoAlgoritmo;
+
 public class Configuracion {
     private final int tamañoMemoria;
     private final int tamañoAlmacenamiento;
@@ -23,10 +25,38 @@ public class Configuracion {
             int tamañoMemoriaVirtual, int tamañoIndice, int inicioUsuario,
             int maxProcesosEnRam, int maxProcesos,
             boolean conservarArchivosAlReiniciar, String algoritmo) {
-        if (algoritmo == null || !algoritmo.trim().equalsIgnoreCase("FCFS")) {
-            throw new IllegalArgumentException("Algoritmo no implementado: " + algoritmo + ". Disponible: FCFS.");
+
+        if (algoritmo == null) {
+
+            throw new IllegalArgumentException(
+                    "Debe indicar el algoritmo de planificación.");
         }
-        this.algoritmo = algoritmo.trim().toUpperCase(java.util.Locale.ROOT);
+        this.algoritmo = algoritmo.trim()
+                .toUpperCase(java.util.Locale.ROOT);
+
+        TipoAlgoritmo seleccionado;
+
+        try {
+
+            seleccionado = TipoAlgoritmo.valueOf(this.algoritmo);
+
+        } catch (IllegalArgumentException error) {
+
+            throw new IllegalArgumentException(
+                    "Algoritmo desconocido: " + algoritmo,
+                    error);
+        }
+
+        if (seleccionado != TipoAlgoritmo.FCFS
+                && seleccionado != TipoAlgoritmo.SPN
+                && seleccionado != TipoAlgoritmo.SRT
+                && seleccionado != TipoAlgoritmo.RR) {
+
+            throw new IllegalArgumentException(
+                    "Algoritmo aún no implementado: "
+                            + seleccionado);
+        }
+        // this.algoritmo = algoritmo.trim().toUpperCase(java.util.Locale.ROOT);
         if (tamañoMemoria < 128 || tamañoAlmacenamiento <= 0 || tamañoIndice <= 0
                 || tamañoMemoriaVirtual < 0
                 || (long) tamañoIndice + tamañoMemoriaVirtual >= tamañoAlmacenamiento) {
@@ -38,7 +68,8 @@ public class Configuracion {
         if (inicioUsuario <= 0 || inicioUsuario > tamañoMemoria / 2
                 || maxProcesos < maxProcesosEnRam
                 || maxProcesos > inicioUsuario) {
-            throw new IllegalArgumentException("El kernel debe ocupar como máximo 50% de RAM, alojar los BCP y los límites deben ser positivos.");
+            throw new IllegalArgumentException(
+                    "El kernel debe ocupar como máximo 50% de RAM, alojar los BCP y los límites deben ser positivos.");
         }
         this.tamañoMemoria = tamañoMemoria;
         this.tamañoAlmacenamiento = tamañoAlmacenamiento;
@@ -50,13 +81,39 @@ public class Configuracion {
         this.conservarArchivosAlReiniciar = conservarArchivosAlReiniciar;
     }
 
-    public int getTamañoMemoria() { return tamañoMemoria; }
-    public String getAlgoritmo() { return algoritmo; }
-    public int getTamañoAlmacenamiento() { return tamañoAlmacenamiento; }
-    public int getTamañoMemoriaVirtual() { return tamañoMemoriaVirtual; }
-    public int getTamañoIndice() { return tamañoIndice; }
-    public int getInicioUsuario() { return inicioUsuario; }
-    public int getMaxProcesosEnRam() { return maxProcesosEnRam; }
-    public int getMaxProcesos() { return maxProcesos; }
-    public boolean isConservarArchivosAlReiniciar() { return conservarArchivosAlReiniciar; }
+    public int getTamañoMemoria() {
+        return tamañoMemoria;
+    }
+
+    public String getAlgoritmo() {
+        return algoritmo;
+    }
+
+    public int getTamañoAlmacenamiento() {
+        return tamañoAlmacenamiento;
+    }
+
+    public int getTamañoMemoriaVirtual() {
+        return tamañoMemoriaVirtual;
+    }
+
+    public int getTamañoIndice() {
+        return tamañoIndice;
+    }
+
+    public int getInicioUsuario() {
+        return inicioUsuario;
+    }
+
+    public int getMaxProcesosEnRam() {
+        return maxProcesosEnRam;
+    }
+
+    public int getMaxProcesos() {
+        return maxProcesos;
+    }
+
+    public boolean isConservarArchivosAlReiniciar() {
+        return conservarArchivosAlReiniciar;
+    }
 }

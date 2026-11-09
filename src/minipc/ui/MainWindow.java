@@ -32,3419 +32,3434 @@ import minipc.model.*;
  */
 public class MainWindow extends JFrame {
 
-        private final Path raiz;
+    private final Path raiz;
 
-        private Controlador controlador;
-        private Configuracion configuracion;
+    private Controlador controlador;
+    private Configuracion configuracion;
 
-        private final Map<Integer, String> nombres = new HashMap<>();
+    private final Map<Integer, String> nombres = new HashMap<>();
 
-        // =========================================================
-        // COLORES
-        // =========================================================
+    // =========================================================
+    // COLORES
+    // =========================================================
 
-        private static final Color FONDO = new Color(242, 246, 251);
+    private static final Color FONDO = new Color(242, 246, 251);
 
-        private static final Color PANEL = Color.WHITE;
+    private static final Color PANEL = Color.WHITE;
 
-        private static final Color BORDE = new Color(221, 229, 238);
+    private static final Color BORDE = new Color(221, 229, 238);
 
-        private static final Color TEXTO = new Color(28, 42, 60);
+    private static final Color TEXTO = new Color(28, 42, 60);
 
-        private static final Color TEXTO_SECUNDARIO = new Color(92, 104, 116);
+    private static final Color TEXTO_SECUNDARIO = new Color(92, 104, 116);
 
-        private static final Color AZUL = new Color(37, 99, 235);
+    private static final Color AZUL = new Color(37, 99, 235);
 
-        private static final Color AZUL_SUAVE = new Color(230, 240, 252);
+    private static final Color AZUL_SUAVE = new Color(230, 240, 252);
 
-        private static final Color VERDE = new Color(53, 145, 91);
+    private static final Color VERDE = new Color(53, 145, 91);
 
-        private static final Color VERDE_SUAVE = new Color(231, 246, 236);
+    private static final Color VERDE_SUAVE = new Color(231, 246, 236);
 
-        private static final Color NARANJA = new Color(205, 127, 42);
+    private static final Color NARANJA = new Color(205, 127, 42);
 
-        private static final Color ROJO = new Color(184, 69, 69);
+    private static final Color ROJO = new Color(184, 69, 69);
 
-        private static final Color ROJO_SUAVE = new Color(249, 229, 229);
+    private static final Color ROJO_SUAVE = new Color(249, 229, 229);
 
-        private static final Color MORADO = new Color(118, 83, 169);
+    private static final Color MORADO = new Color(118, 83, 169);
 
-        private static final Color MORADO_SUAVE = new Color(239, 233, 248);
+    private static final Color MORADO_SUAVE = new Color(239, 233, 248);
 
-        private static final Color GRIS_SUAVE = new Color(236, 239, 242);
+    private static final Color GRIS_SUAVE = new Color(236, 239, 242);
 
-        /** La escala de CPU se mantiene igual en todos los paneles. */
-        private static final Color[] COLORES_CPU = {
-                        new Color(37, 99, 235),
-                        new Color(29, 142, 94),
-                        new Color(213, 124, 38),
-                        new Color(132, 83, 174),
-                        new Color(191, 70, 118)
-        };
+    /** La escala de CPU se mantiene igual en todos los paneles. */
+    private static final Color[] COLORES_CPU = {
+            new Color(37, 99, 235),
+            new Color(29, 142, 94),
+            new Color(213, 124, 38),
+            new Color(132, 83, 174),
+            new Color(191, 70, 118)
+    };
 
-        private static final Color[] FONDOS_CPU = {
-                        new Color(226, 238, 255),
-                        new Color(224, 246, 235),
-                        new Color(255, 240, 222),
-                        new Color(241, 234, 251),
-                        new Color(253, 232, 242)
-        };
+    private static final Color[] FONDOS_CPU = {
+            new Color(226, 238, 255),
+            new Color(224, 246, 235),
+            new Color(255, 240, 222),
+            new Color(241, 234, 251),
+            new Color(253, 232, 242)
+    };
 
-        // En la matriz transpuesta las filas son atributos y las columnas procesos.
-        private static final int FILA_PID = 0;
-        private static final int FILA_CPU = 1;
-        private static final int FILA_ESTADO = 3;
-        private static final int FILA_LLEGADA = 9;
+    // En la matriz transpuesta las filas son atributos y las columnas procesos.
+    private static final int FILA_PID = 0;
+    private static final int FILA_CPU = 1;
+    private static final int FILA_ESTADO = 3;
+    private static final int FILA_LLEGADA = 9;
 
-        private static final String[] CAMPOS_PROCESO = {
-                        "PID", "CPU asignada", "Programa", "Estado", "Ubicación",
-                        "Base", "Instrucciones", "Tiempo CPU (s)", "Ráfaga",
-                        "Llegada ✎", "Restante"
-        };
-        private static final int SEGUNDOS_CRONOGRAMA_INICIALES = 80;
+    private static final String[] CAMPOS_PROCESO = {
+            "PID", "CPU asignada", "Programa", "Estado", "Ubicación",
+            "Base", "Instrucciones", "Tiempo CPU (s)", "Ráfaga",
+            "Llegada ✎", "Restante"
+    };
+    private static final int SEGUNDOS_CRONOGRAMA_INICIALES = 80;
 
-        // =========================================================
-        // INDICADORES GENERALES
-        // =========================================================
+    // =========================================================
+    // INDICADORES GENERALES
+    // =========================================================
 
-        private final JLabel valorReloj = new JLabel("0 s");
+    private final JLabel valorReloj = new JLabel("0 s");
 
-        private final JLabel valorNucleos = new JLabel("1 / 5");
+    private final JLabel valorNucleos = new JLabel("1 / 5");
 
-        private final JLabel valorRAM = new JLabel("-");
+    private final JLabel valorRAM = new JLabel("-");
 
-        private final JLabel valorKernel = new JLabel("-");
+    private final JLabel valorKernel = new JLabel("-");
 
-        private final JLabel valorProgramasEnRAM = new JLabel("-");
+    private final JLabel valorProgramasEnRAM = new JLabel("-");
 
-        private final JLabel valorDisco = new JLabel("-");
+    private final JLabel valorDisco = new JLabel("-");
 
-        private final JProgressBar barraRAM = new JProgressBar();
+    private final JProgressBar barraRAM = new JProgressBar();
 
-        private final JProgressBar barraDisco = new JProgressBar();
+    private final JProgressBar barraDisco = new JProgressBar();
 
-        private final JLabel estadoSimulacion = new JLabel("Listo para configurar");
+    private final JLabel estadoSimulacion = new JLabel("Listo para configurar");
 
-        private final JLabel algoritmoSuperior = new JLabel("Algoritmo: sin seleccionar");
+    private final JLabel algoritmoSuperior = new JLabel("Algoritmo: sin seleccionar");
 
-        // =========================================================
-        // CONFIGURACION DE CPU Y ALGORITMO
-        // =========================================================
+    // =========================================================
+    // CONFIGURACION DE CPU Y ALGORITMO
+    // =========================================================
 
-        private final JSpinner cantidadCPU = new JSpinner(
-                        new SpinnerNumberModel(1, 1, 5, 1));
+    private final JSpinner cantidadCPU = new JSpinner(
+            new SpinnerNumberModel(1, 1, 5, 1));
 
-        private final JComboBox<TipoAlgoritmo> algoritmos = new JComboBox<>(TipoAlgoritmo.values());
+    /** Mostrar solo algoritmos funcionales; los restantes siguen en desarrollo. */
+    private final JComboBox<TipoAlgoritmo> algoritmos = new JComboBox<>(
+            new TipoAlgoritmo[] {
+                    TipoAlgoritmo.FCFS,
+                    TipoAlgoritmo.SPN,
+                    TipoAlgoritmo.SRT,
+                    TipoAlgoritmo.RR
+            });
 
-        private boolean ajustandoControles = false;
+    private final JSpinner quantumRR = new JSpinner(
+            new SpinnerNumberModel(3, 1, 100, 1));
 
-        // =========================================================
-        // NAVEGACIÓN Y RESUMEN DE LA CPU ACTIVA
-        // =========================================================
+    private boolean ajustandoControles = false;
 
-        private int cpuSeleccionada = 1;
+    // =========================================================
+    // NAVEGACIÓN Y RESUMEN DE LA CPU ACTIVA
+    // =========================================================
 
-        private final JLabel procesoCPU = new JLabel("CPU 1 · Libre");
+    private int cpuSeleccionada = 1;
 
-        private final JLabel tiempoOcupadoCPU = valorRegistro("0 s");
+    private final JLabel procesoCPU = new JLabel("CPU 1 · Libre");
 
-        private final JLabel tiempoOciosoCPU = valorRegistro("0 s");
+    private final JLabel tiempoOcupadoCPU = valorRegistro("0 s");
 
-        private final JButton cpuAnterior = new JButton("◀");
+    private final JLabel tiempoOciosoCPU = valorRegistro("0 s");
 
-        private final JButton cpuSiguiente = new JButton("▶");
+    private final JButton cpuAnterior = new JButton("◀");
 
-        // =========================================================
-        // REGISTROS DE LA CPU SELECCIONADA
-        // =========================================================
+    private final JButton cpuSiguiente = new JButton("▶");
 
-        private final JLabel valorPC = valorRegistro("0");
+    // =========================================================
+    // REGISTROS DE LA CPU SELECCIONADA
+    // =========================================================
 
-        private final JLabel valorIR = valorRegistro("");
+    private final JLabel valorPC = valorRegistro("0");
 
-        private final JLabel valorAC = valorRegistro("0");
+    private final JLabel valorIR = valorRegistro("");
 
-        private final JLabel valorAX = valorRegistro("0");
+    private final JLabel valorAC = valorRegistro("0");
 
-        private final JLabel valorBX = valorRegistro("0");
+    private final JLabel valorAX = valorRegistro("0");
 
-        private final JLabel valorCX = valorRegistro("0");
+    private final JLabel valorBX = valorRegistro("0");
 
-        private final JLabel valorDX = valorRegistro("0");
+    private final JLabel valorCX = valorRegistro("0");
 
-        private final JLabel valorAH = valorRegistro("");
+    private final JLabel valorDX = valorRegistro("0");
 
-        private final JLabel valorAL = valorRegistro("");
+    private final JLabel valorAH = valorRegistro("");
 
-        private final JLabel valorZF = valorRegistro("false");
+    private final JLabel valorAL = valorRegistro("");
 
-        // =========================================================
-        // CONSOLA Y CONTROLES
-        // =========================================================
+    private final JLabel valorZF = valorRegistro("false");
 
-        private final JLabel estadoMonitor = new JLabel("Sin entrada solicitada");
+    // =========================================================
+    // CONSOLA Y CONTROLES
+    // =========================================================
 
-        /** Vista organizada del BCP en tres grupos independientes. */
-        private final JTabbedPane pestañasBCP = new JTabbedPane();
+    private final JLabel estadoMonitor = new JLabel("Sin entrada solicitada");
 
-        /** Tarjetas de procesos distribuidas de izquierda a derecha. */
-        private final JPanel contenedorTarjetas = new JPanel();
 
-        private final JScrollPane scrollTarjetas = new JScrollPane(contenedorTarjetas);
+    /** Vista organizada del BCP en tres grupos independientes. */
+    private final JTabbedPane pestañasBCP = new JTabbedPane();
 
-        private final JTextField buscarProcesos = new JTextField(14);
+    /** Tarjetas de procesos distribuidas de izquierda a derecha. */
+    private final JPanel contenedorTarjetas = new JPanel();
 
-        private final JCheckBox mostrarFinalizados = new JCheckBox("Mostrar finalizados", true);
+    private final JScrollPane scrollTarjetas = new JScrollPane(contenedorTarjetas);
 
-        private final JLabel contadorProcesos = new JLabel("Sin procesos cargados");
+    private final JTextField buscarProcesos = new JTextField(14);
 
-        private final JTextArea pantalla = texto();
+    private final JCheckBox mostrarFinalizados =
+            new JCheckBox("Mostrar finalizados", true);
 
-        private final JTextArea estadisticas = texto();
+    private final JLabel contadorProcesos = new JLabel("Sin procesos cargados");
 
-        private final JTextField entrada = new JTextField(10);
+    private final JTextArea pantalla = texto();
 
-        private final JCheckBox conservar = new JCheckBox(
-                        "Conservar archivos al reiniciar",
-                        true);
+    private final JTextArea estadisticas = texto();
 
-        private final JButton cargar = new JButton("Cargar ASM");
+    private final JTextField entrada = new JTextField(10);
 
-        private final JButton disco = new JButton("Ejecutar desde disco");
+    private final JCheckBox conservar = new JCheckBox(
+            "Conservar archivos al reiniciar",
+            true);
 
-        private final JButton siguiente = new JButton("Siguiente");
+    private final JButton cargar = new JButton("Cargar ASM");
 
-        private final JButton automatico = new JButton("Ejecutar");
+    private final JButton disco = new JButton("Ejecutar desde disco");
 
-        private final JButton pausa = new JButton("Pausar");
+    private final JButton siguiente = new JButton("Siguiente");
 
-        private final JButton enviar = new JButton("Enviar");
+    private final JButton automatico = new JButton("Ejecutar");
 
-        // =========================================================
-        // MODELO DE PROCESOS
-        // =========================================================
+    private final JButton pausa = new JButton("Pausar");
 
-        private final DefaultTableModel trabajos = new DefaultTableModel(
-                        new Object[] { "Dato" }, 0) {
+    private final JButton enviar = new JButton("Enviar");
 
-                @Override
-                public boolean isCellEditable(
-                                int fila,
-                                int columna) {
+    // =========================================================
+    // MODELO DE PROCESOS
+    // =========================================================
 
-                        if (fila != FILA_LLEGADA
-                                        || columna <= 0
-                                        || controlador == null
-                                        || controlador.getTiempoSimulado() != 0
-                                        || continuarAutomatico) {
-                                return false;
-                        }
+    private final DefaultTableModel trabajos = new DefaultTableModel(
+            new Object[] { "Dato" }, 0) {
 
-                        int pid = Integer.parseInt(
-                                        getValueAt(FILA_PID, columna).toString());
+        @Override
+        public boolean isCellEditable(
+                int fila,
+                int columna) {
 
-                        BCP proceso = controlador
-                                        .getGestorProcesos()
-                                        .buscarProceso(pid);
+            if (fila != FILA_LLEGADA
+                    || columna <= 0
+                    || controlador == null
+                    || controlador.getTiempoSimulado() != 0
+                    || continuarAutomatico) {
+                return false;
+            }
 
-                        if (proceso == null) {
-                                return false;
-                        }
+            int pid = Integer.parseInt(
+                    getValueAt(FILA_PID, columna).toString());
 
-                        // La llegada se edita individualmente antes del primer tick.
-                        return proceso.getEstado() == EstadoProceso.NUEVO;
+            BCP proceso = controlador
+                    .getGestorProcesos()
+                    .buscarProceso(pid);
+
+            if (proceso == null) {
+                return false;
+            }
+
+            // La llegada se edita individualmente antes del primer tick.
+            return proceso.getEstado() == EstadoProceso.NUEVO;
+        }
+
+        @Override
+        public void setValueAt(
+                Object valor,
+                int fila,
+                int columna) {
+
+            if (fila != FILA_LLEGADA || columna <= 0) {
+                super.setValueAt(valor, fila, columna);
+                return;
+            }
+
+            if (!isCellEditable(fila, columna)) {
+                return;
+            }
+
+            try {
+
+                int llegada = Integer.parseInt(
+                        valor.toString().trim());
+
+                if (llegada < 0) {
+                    throw new NumberFormatException();
                 }
 
-                @Override
-                public void setValueAt(
-                                Object valor,
-                                int fila,
-                                int columna) {
+                int pid = Integer.parseInt(
+                        getValueAt(FILA_PID, columna).toString());
 
-                        if (fila != FILA_LLEGADA || columna <= 0) {
-                                super.setValueAt(valor, fila, columna);
-                                return;
-                        }
+                controlador.configurarLlegada(
+                        pid,
+                        llegada);
 
-                        if (!isCellEditable(fila, columna)) {
-                                return;
-                        }
+                super.setValueAt(
+                        Integer.toString(llegada),
+                        fila,
+                        columna);
 
-                        try {
+                actualizarDetalle();
+                actualizarCronograma();
 
-                                int llegada = Integer.parseInt(
-                                                valor.toString().trim());
+            } catch (RuntimeException ex) {
 
-                                if (llegada < 0) {
-                                        throw new NumberFormatException();
-                                }
-
-                                int pid = Integer.parseInt(
-                                                getValueAt(FILA_PID, columna).toString());
-
-                                controlador.configurarLlegada(
-                                                pid,
-                                                llegada);
-
-                                super.setValueAt(
-                                                Integer.toString(llegada),
-                                                fila,
-                                                columna);
-
-                                actualizarDetalle();
-                                actualizarCronograma();
-
-                        } catch (RuntimeException ex) {
-
-                                JOptionPane.showMessageDialog(
-                                                MainWindow.this,
-                                                "El tiempo de llegada debe ser "
-                                                                + "un entero mayor o igual a cero.",
-                                                "Llegada inválida",
-                                                JOptionPane.ERROR_MESSAGE);
-                        }
-                }
-        };
-
-        // =========================================================
-        // TABLAS DE RECURSOS
-        // =========================================================
-
-        private final DefaultTableModel ram = modelo(
-                        "Dirección",
-                        "Área",
-                        "Contenido");
-
-        private final DefaultTableModel almacenamiento = modelo(
-                        "Dirección",
-                        "Área",
-                        "Contenido");
-
-        private final DefaultTableModel archivos = modelo(
-                        "Nombre",
-                        "Dirección",
-                        "Peso",
-                        "Espacio",
-                        "Tipo");
-
-        private final JTable tablaTrabajos = new JTable(trabajos);
-
-        private final JTable tablaRam = new JTable(ram);
-
-        private final JTable tablaAlmacenamiento = new JTable(almacenamiento);
-
-        private final JTable tablaArchivos = new JTable(archivos);
-
-        // =========================================================
-        // CRONOGRAMA DE EJECUCIÓN MULTINÚCLEO
-        // =========================================================
-
-        /** Una fila por proceso; cada columna representa un segundo simulado. */
-        private final DefaultTableModel modeloCronograma = modelo("Núcleo", "Proceso");
-
-        private final JTable tablaCronograma = new JTable(modeloCronograma);
-
-        private final JLabel resumenCronograma = new JLabel("0 s registrados · 1 celda = 1 segundo");
-
-        private final JCheckBox seguirCronograma = new JCheckBox("Seguir reloj", true);
-
-        /** Segundo -> (CPU -> PID que consumió ese segundo). */
-        private final Map<Integer, Map<Integer, Integer>> historialEjecucion = new HashMap<>();
-
-        /** Vincula cada fila del cronograma con el PID real. */
-        private final List<Integer> pidsCronograma = new ArrayList<>();
-
-        // =========================================================
-        // ESTADO DE LA INTERFAZ
-        // =========================================================
-
-        private final Timer reloj;
-
-        private boolean continuarAutomatico;
-        private boolean actualizando;
-
-        private Integer seleccionado;
-
-        // =========================================================
-        // CONSTRUCTORES
-        // =========================================================
-
-        public MainWindow() {
-                this(Paths.get("."));
+                JOptionPane.showMessageDialog(
+                        MainWindow.this,
+                        "El tiempo de llegada debe ser "
+                                + "un entero mayor o igual a cero.",
+                        "Llegada inválida",
+                        JOptionPane.ERROR_MESSAGE);
+            }
         }
+    };
 
-        public MainWindow(Path raiz) {
+    // =========================================================
+    // TABLAS DE RECURSOS
+    // =========================================================
 
-                super("Mini PC - Gestor de Procesos");
+    private final DefaultTableModel ram = modelo(
+            "Dirección",
+            "Área",
+            "Contenido");
 
-                this.raiz = raiz.toAbsolutePath().normalize();
+    private final DefaultTableModel almacenamiento = modelo(
+            "Dirección",
+            "Área",
+            "Contenido");
 
-                // Un tick automático por segundo real.
-                this.reloj = new Timer(
-                                1000,
-                                e -> ejecutarTick());
+    private final DefaultTableModel archivos = modelo(
+            "Nombre",
+            "Dirección",
+            "Peso",
+            "Espacio",
+            "Tipo");
 
-                setDefaultCloseOperation(
-                                JFrame.EXIT_ON_CLOSE);
+    private final JTable tablaTrabajos = new JTable(trabajos);
 
-                setMinimumSize(
-                                new Dimension(1180, 740));
+    private final JTable tablaRam = new JTable(ram);
 
-                setSize(1550, 920);
+    private final JTable tablaAlmacenamiento = new JTable(almacenamiento);
 
-                setLocationRelativeTo(null);
+    private final JTable tablaArchivos = new JTable(archivos);
 
-                getContentPane().setBackground(FONDO);
+    // =========================================================
+    // CRONOGRAMA DE EJECUCIÓN MULTINÚCLEO
+    // =========================================================
 
-                // El usuario elige explícitamente el algoritmo en Configuración.
-                algoritmos.setSelectedIndex(-1);
+    /** Una fila por proceso; cada columna representa un segundo simulado. */
+    private final DefaultTableModel modeloCronograma = modelo("Núcleo", "Proceso");
 
-                configurarBotones();
-                configurarTablas();
-                configurarCronograma();
-                construirInterfaz();
-                registrarEventos();
+    private final JTable tablaCronograma = new JTable(modeloCronograma);
 
-                actualizar();
+    private final JLabel resumenCronograma = new JLabel("0 s registrados · 1 celda = 1 segundo");
 
-                try {
+    private final JCheckBox seguirCronograma = new JCheckBox("Seguir reloj", true);
 
-                        cargarConfiguracion(
-                                        this.raiz.resolve(
-                                                        "config/minipc.txt"));
+    /** Segundo -> (CPU -> PID que consumió ese segundo). */
+    private final Map<Integer, Map<Integer, Integer>> historialEjecucion = new HashMap<>();
 
-                } catch (IOException | RuntimeException ex) {
+    /** Vincula cada fila del cronograma con el PID real. */
+    private final List<Integer> pidsCronograma = new ArrayList<>();
 
-                        // El usuario puede cargar la configuración.
-                }
+    // =========================================================
+    // ESTADO DE LA INTERFAZ
+    // =========================================================
+
+    private final Timer reloj;
+
+    private boolean continuarAutomatico;
+    private boolean actualizando;
+
+    private Integer seleccionado;
+
+    // =========================================================
+    // CONSTRUCTORES
+    // =========================================================
+
+    public MainWindow() {
+        this(Paths.get("."));
+    }
+
+    public MainWindow(Path raiz) {
+
+        super("Mini PC - Gestor de Procesos");
+
+        this.raiz = raiz.toAbsolutePath().normalize();
+
+        // Un tick automático por segundo real.
+        this.reloj = new Timer(
+                1000,
+                e -> ejecutarTick());
+
+        setDefaultCloseOperation(
+                JFrame.EXIT_ON_CLOSE);
+
+        setMinimumSize(
+                new Dimension(1180, 740));
+
+        setSize(1550, 920);
+
+        setLocationRelativeTo(null);
+
+        getContentPane().setBackground(FONDO);
+
+        // El usuario elige explícitamente el algoritmo en Configuración.
+        algoritmos.setSelectedIndex(-1);
+
+        configurarBotones();
+        configurarTablas();
+        configurarCronograma();
+        construirInterfaz();
+        registrarEventos();
+
+        actualizar();
+
+        try {
+
+            cargarConfiguracion(
+                    this.raiz.resolve(
+                            "config/minipc.txt"));
+
+        } catch (IOException | RuntimeException ex) {
+
+            // El usuario puede cargar la configuración.
         }
+    }
 
-        // =========================================================
-        // CONSTRUCCION GENERAL
-        // =========================================================
+    // =========================================================
+    // CONSTRUCCION GENERAL
+    // =========================================================
 
-        private void construirInterfaz() {
+    private void construirInterfaz() {
 
-                setLayout(new BorderLayout(10, 10));
+        setLayout(new BorderLayout(10, 10));
 
-                add(
-                                crearEncabezado(),
-                                BorderLayout.NORTH);
+        add(
+                crearEncabezado(),
+                BorderLayout.NORTH);
 
-                JPanel principal = new JPanel(new BorderLayout(10, 10));
+        JPanel principal = new JPanel(new BorderLayout(10, 10));
 
-                principal.setOpaque(false);
+        principal.setOpaque(false);
 
-                principal.setBorder(
-                                new EmptyBorder(0, 10, 10, 10));
+        principal.setBorder(
+                new EmptyBorder(0, 10, 10, 10));
 
-                JSplitPane izquierdaCentro = new JSplitPane(
-                                JSplitPane.HORIZONTAL_SPLIT,
-                                crearPanelProcesos(),
-                                crearPanelCPUYBCP());
+        JSplitPane izquierdaCentro = new JSplitPane(
+                JSplitPane.HORIZONTAL_SPLIT,
+                crearPanelProcesos(),
+                crearPanelCPUYBCP());
 
-                configurarSplit(
-                                izquierdaCentro,
-                                0.59,
-                                610);
+        configurarSplit(
+                izquierdaCentro,
+                0.59,
+                610);
 
-                JSplitPane contenido = new JSplitPane(
-                                JSplitPane.HORIZONTAL_SPLIT,
-                                izquierdaCentro,
-                                crearPanelRecursosConMonitor());
+        JSplitPane contenido = new JSplitPane(
+                JSplitPane.HORIZONTAL_SPLIT,
+                izquierdaCentro,
+                crearPanelRecursosConMonitor());
 
-                configurarSplit(
-                                contenido,
-                                0.73,
-                                1050);
+        configurarSplit(
+                contenido,
+                0.73,
+                1050);
 
-                /*
-                 * El cronograma puede ampliarse o reducirse arrastrando
-                 * el separador, sin ocultar los paneles existentes.
-                 */
-                JSplitPane vistaCompleta = new JSplitPane(
-                                JSplitPane.VERTICAL_SPLIT,
-                                contenido,
-                                crearPanelCronograma());
-
-                // Reservar menos altura al cronograma para aprovechar el área superior.
-                configurarSplit(vistaCompleta, 0.82, 580);
-
-                principal.add(vistaCompleta, BorderLayout.CENTER);
-
-                add(
-                                principal,
-                                BorderLayout.CENTER);
-        }
-
-        // =========================================================
-        // ENCABEZADO
-        // =========================================================
-
-        private JPanel crearEncabezado() {
-
-                JPanel exterior = new JPanel(new BorderLayout(0, 8));
-
-                exterior.setOpaque(false);
-
-                exterior.setBorder(
-                                new EmptyBorder(10, 10, 0, 10));
-
-                JPanel barra = new JPanel(new BorderLayout(18, 0));
-
-                barra.setBackground(
-                                new Color(19, 35, 56));
-
-                barra.setBorder(
-                                new EmptyBorder(16, 18, 16, 18));
-
-                JLabel titulo = new JLabel(
-                                "MINI PC  /  CENTRO DE CONTROL");
-
-                titulo.setForeground(Color.WHITE);
-
-                titulo.setFont(
-                                titulo.getFont().deriveFont(
-                                                Font.BOLD,
-                                                19f));
-
-                JLabel subtitulo = new JLabel(
-                                "Planificación de procesos · "
-                                                + "Ejecución multinúcleo");
-
-                subtitulo.setForeground(
-                                new Color(205, 215, 225));
-
-                subtitulo.setFont(
-                                subtitulo.getFont().deriveFont(
-                                                Font.PLAIN,
-                                                12f));
-
-                JPanel identidad = new JPanel(new GridLayout(2, 1));
-
-                identidad.setOpaque(false);
-
-                identidad.add(titulo);
-                identidad.add(subtitulo);
-
-                JPanel acciones = new JPanel(
-                                new FlowLayout(
-                                                FlowLayout.RIGHT,
-                                                5,
-                                                0));
-
-                acciones.setOpaque(false);
-
-                JButton configurar = new JButton("Configuración");
-
-                JButton acerca = new JButton("Acerca del dispositivo");
-
-                JButton reiniciar = new JButton("Reiniciar");
-
-                aplicarBotonSecundario(configurar);
-                aplicarBotonSecundario(acerca);
-                aplicarBotonPrincipal(cargar);
-                aplicarBotonSecundario(disco);
-                aplicarBotonPeligro(reiniciar);
-
-                conservar.setOpaque(false);
-                conservar.setForeground(Color.WHITE);
-
-                acciones.add(configurar);
-                acciones.add(acerca);
-                acciones.add(cargar);
-                acciones.add(disco);
-                acciones.add(reiniciar);
-                acciones.add(conservar);
-
-                barra.add(
-                                identidad,
-                                BorderLayout.WEST);
-
-                JPanel relojCabecera = new JPanel(new GridLayout(2, 1, 0, 3));
-                relojCabecera.setOpaque(false);
-
-                valorReloj.setForeground(Color.WHITE);
-                valorReloj.setFont(fuenteInterfaz(Font.BOLD, 23f));
-                valorReloj.setHorizontalAlignment(SwingConstants.CENTER);
-
-                algoritmoSuperior.setForeground(new Color(204, 221, 244));
-                algoritmoSuperior.setFont(fuenteInterfaz(Font.BOLD, 11f));
-                algoritmoSuperior.setHorizontalAlignment(SwingConstants.CENTER);
-
-                relojCabecera.add(valorReloj);
-                relojCabecera.add(algoritmoSuperior);
-
-                barra.add(relojCabecera, BorderLayout.CENTER);
-
-                barra.add(
-                                acciones,
-                                BorderLayout.EAST);
-
-                exterior.add(
-                                barra,
-                                BorderLayout.NORTH);
-
-                exterior.add(
-                                crearPanelEjecucion(),
-                                BorderLayout.SOUTH);
-
-                configurar.addActionListener(
-                                e -> mostrarConfiguracion());
-
-                acerca.addActionListener(
-                                e -> mostrarAcercaDispositivo());
-
-                reiniciar.addActionListener(e -> {
-
-                        detener();
-
-                        if (controlador != null) {
-
-                                controlador.reiniciar(
-                                                conservar.isSelected());
-                        }
-
-                        nombres.clear();
-                        seleccionado = null;
-                        historialEjecucion.clear();
-                        cpuSeleccionada = 1;
-
-                        actualizar();
-                });
-
-                return exterior;
-        }
-
-        private JPanel crearTarjetaResumen(
-                        String titulo,
-                        JLabel valor,
-                        Color acento,
-                        JProgressBar barra) {
-
-                JPanel panel = new JPanel(new BorderLayout(4, 6));
-
-                panel.setBackground(PANEL);
-
-                panel.setBorder(
-                                BorderFactory.createCompoundBorder(
-                                                BorderFactory.createMatteBorder(
-                                                                0, 4, 0, 0, acento),
-                                                BorderFactory.createCompoundBorder(
-                                                                BorderFactory.createLineBorder(BORDE),
-                                                                new EmptyBorder(10, 14, 10, 14))));
-
-                JLabel etiqueta = new JLabel(titulo);
-
-                etiqueta.setForeground(TEXTO_SECUNDARIO);
-
-                etiqueta.setFont(
-                                etiqueta.getFont().deriveFont(
-                                                Font.BOLD,
-                                                11f));
-
-                valor.setForeground(TEXTO);
-
-                valor.setFont(
-                                valor.getFont().deriveFont(
-                                                Font.BOLD,
-                                                17f));
-
-                panel.add(
-                                etiqueta,
-                                BorderLayout.NORTH);
-
-                panel.add(
-                                valor,
-                                BorderLayout.CENTER);
-
-                if (barra != null) {
-
-                        barra.setStringPainted(true);
-
-                        barra.setPreferredSize(
-                                        new Dimension(100, 15));
-
-                        panel.add(
-                                        barra,
-                                        BorderLayout.SOUTH);
-                }
-
-                return panel;
-        }
-
-        // =========================================================
-        // VENTANAS DE CONFIGURACIÓN Y ACERCA DEL DISPOSITIVO
-        // =========================================================
-
-        /**
-         * Agrupa la configuración de CPU y algoritmo en una ventana.
-         * La RAM y el disco continúan configurándose desde el archivo
-         * de configuración hasta implementar su edición directa.
+        /*
+         * El cronograma puede ampliarse o reducirse arrastrando
+         * el separador, sin ocultar los paneles existentes.
          */
-        private void mostrarConfiguracion() {
-
-                if (controlador == null) {
-                        JOptionPane.showMessageDialog(this,
-                                        "Primero debe cargar la configuración inicial.",
-                                        "Configuración", JOptionPane.INFORMATION_MESSAGE);
-                        return;
-                }
-
-                boolean editable = controlador.getTiempoSimulado() == 0
-                                && !continuarAutomatico;
-
-                ajustandoControles = true;
-                try {
-                        cantidadCPU.setValue(controlador.getCantidadCPU());
-                        algoritmos.setSelectedItem(controlador.getAlgoritmoSeleccionado());
-                } finally {
-                        ajustandoControles = false;
-                }
-
-                cantidadCPU.setEnabled(editable);
-                algoritmos.setEnabled(editable);
-
-                JDialog ventana = new JDialog(this, "Configuración de la Mini PC", true);
-                ventana.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
-                ventana.setLayout(new BorderLayout(12, 12));
-
-                JPanel contenido = new JPanel(new BorderLayout(12, 14));
-                contenido.setBackground(FONDO);
-                contenido.setBorder(new EmptyBorder(18, 18, 8, 18));
-
-                JLabel titulo = new JLabel("Configuración del procesador");
-                titulo.setFont(fuenteInterfaz(Font.BOLD, 18f));
-                titulo.setForeground(TEXTO);
-                contenido.add(titulo, BorderLayout.NORTH);
-
-                JPanel formulario = new JPanel(new GridLayout(4, 2, 10, 12));
-                formulario.setOpaque(false);
-
-                formulario.add(new JLabel("Cantidad de CPU (1 a 5):"));
-                formulario.add(cantidadCPU);
-                formulario.add(new JLabel("Algoritmo de planificación:"));
-                formulario.add(algoritmos);
-                formulario.add(new JLabel("RAM total / Kernel:"));
-                formulario.add(new JLabel(configuracion.getTamañoMemoria()
-                                + " / " + configuracion.getInicioUsuario() + " posiciones"));
-                formulario.add(new JLabel("Almacenamiento:"));
-                formulario.add(new JLabel(configuracion.getTamañoAlmacenamiento()
-                                + " posiciones"));
-
-                JPanel centro = new JPanel(new BorderLayout(4, 12));
-                centro.setOpaque(false);
-                centro.add(formulario, BorderLayout.NORTH);
-
-                JLabel ayuda = new JLabel("<html><div style='width:395px'>"
-                                + (editable
-                                                ? "Los cambios de CPU y algoritmo se guardan al presionar Aplicar. "
-                                                : "La simulación ya comenzó: no se permiten cambios de CPU o algoritmo. ")
-                                + "La memoria y el disco se podrán editar aquí más adelante; "
-                                + "por ahora se leen del archivo de configuración.</div></html>");
-                ayuda.setForeground(TEXTO_SECUNDARIO);
-                centro.add(ayuda, BorderLayout.CENTER);
-
-                contenido.add(centro, BorderLayout.CENTER);
-
-                JPanel botones = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 8));
-                botones.setOpaque(false);
-
-                JButton abrirArchivo = new JButton("Cargar archivo...");
-                JButton cancelar = new JButton("Cancelar");
-                JButton aplicar = new JButton("Aplicar");
-                aplicarBotonPrincipal(aplicar);
-
-                aplicar.setEnabled(editable);
-
-                abrirArchivo.addActionListener(e -> {
-                        ventana.dispose();
-                        elegirConfiguracion();
-                });
-
-                cancelar.addActionListener(e -> {
-                        ventana.dispose();
-                        actualizar();
-                });
-
-                aplicar.addActionListener(e -> {
-                        try {
-                                TipoAlgoritmo seleccionadoAlgoritmo = (TipoAlgoritmo) algoritmos.getSelectedItem();
-
-                                if (seleccionadoAlgoritmo == null) {
-                                        throw new IllegalArgumentException(
-                                                        "Seleccione un algoritmo antes de continuar.");
-                                }
-
-                                controlador.configurarCantidadCPU((Integer) cantidadCPU.getValue());
-                                controlador.configurarAlgoritmo(seleccionadoAlgoritmo);
-                                cpuSeleccionada = Math.min(cpuSeleccionada, controlador.getCantidadCPU());
-
-                                ventana.dispose();
-                                actualizar();
-
-                        } catch (RuntimeException error) {
-                                mostrarError(error);
-                                actualizar();
-                        }
-                });
+        JSplitPane vistaCompleta = new JSplitPane(
+                JSplitPane.VERTICAL_SPLIT,
+                contenido,
+                crearPanelCronograma());
 
-                botones.add(abrirArchivo);
-                botones.add(cancelar);
-                botones.add(aplicar);
+        // Reservar menos altura al cronograma para aprovechar el área superior.
+        configurarSplit(vistaCompleta, 0.82, 580);
 
-                ventana.add(contenido, BorderLayout.CENTER);
-                ventana.add(botones, BorderLayout.SOUTH);
-                ventana.setSize(545, 365);
-                ventana.setLocationRelativeTo(this);
-                ventana.setVisible(true);
-        }
+        principal.add(vistaCompleta, BorderLayout.CENTER);
 
-        /** Muestra las características y los recursos del dispositivo. */
-        private void mostrarAcercaDispositivo() {
+        add(
+                principal,
+                BorderLayout.CENTER);
+    }
 
-                actualizar();
+    // =========================================================
+    // ENCABEZADO
+    // =========================================================
 
-                JDialog ventana = new JDialog(this, "Acerca del dispositivo", true);
-                ventana.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
-                ventana.setLayout(new BorderLayout(12, 12));
+    private JPanel crearEncabezado() {
 
-                JPanel contenido = new JPanel(new BorderLayout(12, 12));
-                contenido.setBackground(FONDO);
-                contenido.setBorder(new EmptyBorder(18, 18, 18, 18));
+        JPanel exterior = new JPanel(new BorderLayout(0, 8));
 
-                JLabel titulo = new JLabel("Mini PC · Información del dispositivo");
-                titulo.setFont(fuenteInterfaz(Font.BOLD, 19f));
-                titulo.setForeground(TEXTO);
-
-                JLabel subtitulo = new JLabel(
-                                "Estado actual del procesador, la memoria y el almacenamiento.");
-                subtitulo.setForeground(TEXTO_SECUNDARIO);
-
-                JPanel cabecera = new JPanel(new GridLayout(2, 1, 0, 5));
-                cabecera.setOpaque(false);
-                cabecera.add(titulo);
-                cabecera.add(subtitulo);
-                contenido.add(cabecera, BorderLayout.NORTH);
-
-                JPanel tarjetas = new JPanel(new GridLayout(2, 3, 12, 12));
-                tarjetas.setOpaque(false);
-
-                tarjetas.add(crearTarjetaResumen("CPU CONFIGURADAS", valorNucleos, VERDE, null));
-                tarjetas.add(crearTarjetaResumen("RAM USUARIO", valorRAM, AZUL, barraRAM));
-                tarjetas.add(crearTarjetaResumen("KERNEL / SO", valorKernel, MORADO, null));
-                tarjetas.add(crearTarjetaResumen("PROGRAMAS EN RAM", valorProgramasEnRAM, VERDE, null));
-                tarjetas.add(crearTarjetaResumen("DISCO", valorDisco, NARANJA, barraDisco));
-
-                JLabel algoritmo = new JLabel(controlador == null
-                                || controlador.getAlgoritmoSeleccionado() == null
-                                                ? "Sin seleccionar"
-                                                : controlador.getAlgoritmoSeleccionado().name());
-                tarjetas.add(crearTarjetaResumen("ALGORITMO", algoritmo, AZUL, null));
-
-                contenido.add(tarjetas, BorderLayout.CENTER);
-
-                JButton cerrar = new JButton("Cerrar");
-                aplicarBotonPrincipal(cerrar);
-                cerrar.addActionListener(e -> ventana.dispose());
-
-                JPanel pie = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-                pie.setOpaque(false);
-                pie.add(cerrar);
-
-                ventana.add(contenido, BorderLayout.CENTER);
-                ventana.add(pie, BorderLayout.SOUTH);
-                ventana.setSize(760, 395);
-                ventana.setLocationRelativeTo(this);
-                ventana.setVisible(true);
-        }
-
-        // =========================================================
-        // PROCESOS Y BCP
-        // =========================================================
-
-        private JPanel crearPanelProcesos() {
-
-                JPanel panel = panelSeccion("Procesos · Vista general");
-
-                JPanel filtros = new JPanel(new BorderLayout(8, 6));
-                filtros.setOpaque(false);
-
-                buscarProcesos.setToolTipText("Filtrar por PID o nombre de archivo ASM");
-                buscarProcesos.putClientProperty("JTextField.placeholderText", "Buscar PID o programa...");
-
-                JLabel buscar = new JLabel("Buscar:");
-                buscar.setForeground(TEXTO_SECUNDARIO);
-
-                JPanel busqueda = new JPanel(new BorderLayout(6, 0));
-                busqueda.setOpaque(false);
-                busqueda.add(buscar, BorderLayout.WEST);
-                busqueda.add(buscarProcesos, BorderLayout.CENTER);
-
-                mostrarFinalizados.setOpaque(false);
-                mostrarFinalizados.setFont(fuenteInterfaz(Font.PLAIN, 11f));
-
-                contadorProcesos.setForeground(TEXTO_SECUNDARIO);
-                contadorProcesos.setFont(fuenteInterfaz(Font.PLAIN, 11f));
-
-                filtros.add(busqueda, BorderLayout.CENTER);
-                filtros.add(mostrarFinalizados, BorderLayout.EAST);
-                filtros.add(contadorProcesos, BorderLayout.SOUTH);
-
-                panel.add(filtros, BorderLayout.NORTH);
-
-                contenedorTarjetas.setLayout(new BoxLayout(contenedorTarjetas, BoxLayout.Y_AXIS));
-                contenedorTarjetas.setBackground(new Color(247, 249, 252));
-                contenedorTarjetas.setBorder(new EmptyBorder(8, 8, 8, 8));
-
-                scrollTarjetas.setBorder(BorderFactory.createLineBorder(BORDE));
-                scrollTarjetas.getVerticalScrollBar().setUnitIncrement(24);
-                scrollTarjetas.setHorizontalScrollBarPolicy(
-                                ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-
-                panel.add(scrollTarjetas, BorderLayout.CENTER);
-
-                return panel;
-        }
-
-        /**
-         * Ordena visualmente los procesos por estado y luego por PID.
-         * Los nuevos aparecen primero y los finalizados al final.
-         */
-        private static int ordenEstado(EstadoProceso estado) {
-                return switch (estado) {
-                        case NUEVO -> 0;
-                        case PREPARADO -> 1;
-                        case EJECUCION -> 2;
-                        case BLOQUEADO -> 3;
-                        case PREPARADO_SUSPENDIDO -> 4;
-                        case BLOQUEADO_SUSPENDIDO -> 5;
-                        case FINALIZADO -> 6;
-                };
-        }
-
-        /** Obtiene el título legible de cada agrupación de procesos. */
-        private static String nombreGrupo(EstadoProceso estado) {
-                return switch (estado) {
-                        case NUEVO -> "Nuevos";
-                        case PREPARADO -> "Preparados";
-                        case EJECUCION -> "En ejecución";
-                        case BLOQUEADO -> "Bloqueados";
-                        case PREPARADO_SUSPENDIDO -> "Preparados suspendidos";
-                        case BLOQUEADO_SUSPENDIDO -> "Bloqueados suspendidos";
-                        case FINALIZADO -> "Finalizados";
-                };
-        }
-
-        /**
-         * Construye los grupos de tarjetas en orden de estado.
-         * Cada grupo coloca sus procesos de izquierda a derecha.
-         */
-        private void actualizarTarjetasProcesos() {
-
-                int desplazamiento = scrollTarjetas.getVerticalScrollBar().getValue();
-
-                contenedorTarjetas.removeAll();
-
-                if (controlador == null) {
-                        contadorProcesos.setText("Sin procesos cargados");
-                        contenedorTarjetas.revalidate();
-                        contenedorTarjetas.repaint();
-                        return;
-                }
-
-                java.util.List<BCP> procesos = new java.util.ArrayList<>(
-                                controlador.getGestorProcesos().getListaTrabajos());
-
-                procesos.sort((a, b) -> {
-                        int comparacion = Integer.compare(ordenEstado(a.getEstado()),
-                                        ordenEstado(b.getEstado()));
-                        return comparacion != 0
-                                        ? comparacion
-                                        : Integer.compare(a.getPid(), b.getPid());
-                });
-
-                String filtro = buscarProcesos.getText().trim().toLowerCase(java.util.Locale.ROOT);
-                int visibles = 0;
-                int finalizados = 0;
-
-                for (BCP p : procesos) {
-                        if (p.getEstado() == EstadoProceso.FINALIZADO) {
-                                finalizados++;
-                        }
-                }
-
-                for (EstadoProceso estado : new EstadoProceso[] {
-                                EstadoProceso.NUEVO,
-                                EstadoProceso.PREPARADO,
-                                EstadoProceso.EJECUCION,
-                                EstadoProceso.BLOQUEADO,
-                                EstadoProceso.PREPARADO_SUSPENDIDO,
-                                EstadoProceso.BLOQUEADO_SUSPENDIDO,
-                                EstadoProceso.FINALIZADO
-                }) {
-
-                        if (estado == EstadoProceso.FINALIZADO
-                                        && !mostrarFinalizados.isSelected()) {
-                                continue;
-                        }
-
-                        java.util.List<BCP> grupo = new java.util.ArrayList<>();
-
-                        for (BCP proceso : procesos) {
-                                if (proceso.getEstado() != estado) {
-                                        continue;
-                                }
-
-                                String nombre = nombres.getOrDefault(proceso.getPid(), "");
-                                String consulta = ("pid " + proceso.getPid() + " " + nombre
-                                                + " " + proceso.getEstado()).toLowerCase(java.util.Locale.ROOT);
-
-                                if (filtro.isEmpty() || consulta.contains(filtro)
-                                                || Integer.toString(proceso.getPid()).equals(filtro)) {
-                                        grupo.add(proceso);
-                                }
-                        }
-
-                        if (grupo.isEmpty()) {
-                                continue;
-                        }
-
-                        visibles += grupo.size();
-
-                        JPanel seccion = new JPanel(new BorderLayout(0, 7));
-                        seccion.setOpaque(false);
-                        seccion.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-                        JLabel titulo = new JLabel(nombreGrupo(estado)
-                                        + "  ·  " + grupo.size());
-                        titulo.setForeground(estado == EstadoProceso.FINALIZADO
-                                        ? TEXTO_SECUNDARIO
-                                        : TEXTO);
-                        titulo.setFont(fuenteInterfaz(Font.BOLD, 13f));
-                        titulo.setBorder(new EmptyBorder(2, 2, 3, 0));
-
-                        JPanel tarjetas = new JPanel(new GridLayout(0, 2, 10, 10));
-                        tarjetas.setOpaque(false);
-
-                        for (BCP proceso : grupo) {
-                                tarjetas.add(crearTarjetaProceso(proceso));
-                        }
-
-                        seccion.add(titulo, BorderLayout.NORTH);
-                        seccion.add(tarjetas, BorderLayout.CENTER);
-                        seccion.setMaximumSize(new Dimension(Integer.MAX_VALUE,
-                                        seccion.getPreferredSize().height));
-
-                        contenedorTarjetas.add(seccion);
-                        contenedorTarjetas.add(Box.createVerticalStrut(12));
-                }
-
-                contadorProcesos.setText(procesos.size() + " procesos · "
-                                + visibles + " visibles · " + finalizados + " finalizados");
-
-                if (visibles == 0) {
-                        JLabel vacio = new JLabel("No hay procesos con ese filtro.");
-                        vacio.setForeground(TEXTO_SECUNDARIO);
-                        vacio.setBorder(new EmptyBorder(15, 10, 15, 10));
-                        vacio.setAlignmentX(Component.LEFT_ALIGNMENT);
-                        contenedorTarjetas.add(vacio);
-                }
-
-                contenedorTarjetas.revalidate();
-                contenedorTarjetas.repaint();
-
-                SwingUtilities.invokeLater(() -> scrollTarjetas.getVerticalScrollBar()
-                                .setValue(desplazamiento));
-        }
-
-        /**
-         * Crea una tarjeta compacta con PID, CPU, estado, ráfaga y llegada.
-         * Incluye acceso al BCP sin desplazar horizontalmente una tabla.
-         */
-        private JPanel crearTarjetaProceso(BCP proceso) {
-
-                int cpuId = proceso.getCpuAsignada();
-                boolean seleccionadoAhora = seleccionado != null
-                                && seleccionado == proceso.getPid();
-
-                JPanel tarjeta = new JPanel(new BorderLayout(5, 8));
-                tarjeta.setBackground(seleccionadoAhora
-                                ? fondoCPU(cpuId)
-                                : PANEL);
-                tarjeta.setBorder(BorderFactory.createCompoundBorder(
-                                BorderFactory.createMatteBorder(1, 5, 1, 1, colorCPU(cpuId)),
-                                new EmptyBorder(9, 10, 9, 10)));
-                tarjeta.setPreferredSize(new Dimension(210, 151));
-
-                JPanel superior = new JPanel(new BorderLayout(4, 0));
-                superior.setOpaque(false);
-
-                JLabel pid = new JLabel("PID " + proceso.getPid());
-                pid.setFont(fuenteInterfaz(Font.BOLD, 15f));
-                pid.setForeground(TEXTO);
-
-                JLabel cpu = new JLabel(cpuId < 1 ? "Sin CPU" : "CPU " + cpuId);
-                cpu.setFont(fuenteInterfaz(Font.BOLD, 11f));
-                cpu.setForeground(colorCPU(cpuId));
-
-                superior.add(pid, BorderLayout.WEST);
-                superior.add(cpu, BorderLayout.EAST);
-
-                JPanel informacion = new JPanel(new GridLayout(3, 1, 0, 3));
-                informacion.setOpaque(false);
-
-                String nombre = nombres.getOrDefault(proceso.getPid(),
-                                "Programa " + proceso.getPid());
-                JLabel programa = new JLabel(nombre);
-                programa.setToolTipText(nombre);
-                programa.setForeground(TEXTO);
-                programa.setFont(fuenteInterfaz(Font.BOLD, 12f));
-
-                JLabel estado = new JLabel(nombreGrupo(proceso.getEstado())
-                                + "  ·  Restante: " + proceso.getTiempoRestante() + " s");
-                estado.setForeground(TEXTO_SECUNDARIO);
-                estado.setFont(fuenteInterfaz(Font.PLAIN, 11f));
-
-                JProgressBar avance = new JProgressBar(0, Math.max(1, proceso.getRafaga()));
-                avance.setValue(Math.min(proceso.getTiempoCPU(), avance.getMaximum()));
-                avance.setForeground(colorCPU(cpuId));
-                avance.setBackground(GRIS_SUAVE);
-                avance.setPreferredSize(new Dimension(100, 8));
-
-                informacion.add(programa);
-                informacion.add(estado);
-                informacion.add(avance);
-
-                JPanel inferior = new JPanel(new BorderLayout(5, 0));
-                inferior.setOpaque(false);
-
-                boolean editable = controlador.getTiempoSimulado() == 0
-                                && proceso.getEstado() == EstadoProceso.NUEVO
-                                && !continuarAutomatico;
-
-                if (editable) {
-                        JSpinner llegada = new JSpinner(new SpinnerNumberModel(
-                                        proceso.getTiempoLlegada(), 0, 100000, 1));
-                        llegada.setToolTipText("Editar llegada de este proceso");
-                        llegada.setPreferredSize(new Dimension(90, 29));
-                        llegada.addChangeListener(e -> {
-                                try {
-                                        controlador.configurarLlegada(proceso.getPid(),
-                                                        (Integer) llegada.getValue());
-                                        actualizarDetalle();
-                                } catch (RuntimeException error) {
-                                        mostrarError(error);
-                                }
-                        });
-                        inferior.add(llegada, BorderLayout.WEST);
-                } else {
-                        JLabel llegada = new JLabel("Llegada: "
-                                        + proceso.getTiempoLlegada() + " s");
-                        llegada.setFont(fuenteInterfaz(Font.PLAIN, 11f));
-                        llegada.setForeground(TEXTO_SECUNDARIO);
-                        inferior.add(llegada, BorderLayout.WEST);
-                }
-
-                JButton consultar = new JButton("Ver BCP");
-                consultar.setFont(fuenteInterfaz(Font.BOLD, 11f));
-                consultar.addActionListener(e -> seleccionarProcesoCronograma(proceso.getPid()));
-                inferior.add(consultar, BorderLayout.EAST);
-
-                tarjeta.add(superior, BorderLayout.NORTH);
-                tarjeta.add(informacion, BorderLayout.CENTER);
-                tarjeta.add(inferior, BorderLayout.SOUTH);
-
-                return tarjeta;
-        }
-
-        // =========================================================
-        // CRONOGRAMA DE EJECUCIÓN
-        // =========================================================
-
-        /**
-         * Construye la línea de tiempo solicitada: núcleo, proceso
-         * y una columna por segundo simulado.
-         *
-         * Una CPU puede aparecer en varias filas si tiene varios
-         * procesos asignados. Sus celdas conservan el mismo color.
-         */
-        private JPanel crearPanelCronograma() {
-
-                JPanel panel = panelSeccion("Cronograma de ejecución · 1 columna = 1 segundo");
-
-                JPanel encabezado = new JPanel(new BorderLayout(10, 0));
-                encabezado.setOpaque(false);
-
-                JPanel leyenda = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
-                leyenda.setOpaque(false);
-
-                for (int cpuId = 1; cpuId <= COLORES_CPU.length; cpuId++) {
-                        JLabel indicador = new JLabel("■ CPU " + cpuId);
-                        indicador.setForeground(colorCPU(cpuId));
-                        indicador.setFont(fuenteInterfaz(Font.BOLD, 11f));
-                        leyenda.add(indicador);
-                }
-
-                encabezado.add(leyenda, BorderLayout.CENTER);
-
-                JPanel controles = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
-                controles.setOpaque(false);
-                seguirCronograma.setOpaque(false);
-
-                JButton volverInicio = new JButton("Inicio");
-                volverInicio.addActionListener(e -> desplazarCronograma(1));
-
-                JButton verActual = new JButton("Último segundo");
-                verActual.addActionListener(e -> desplazarCronograma(
-                                controlador == null ? 1 : controlador.getTiempoSimulado()));
-
-                controles.add(resumenCronograma);
-                controles.add(seguirCronograma);
-                controles.add(volverInicio);
-                controles.add(verActual);
-
-                encabezado.add(controles, BorderLayout.EAST);
-                panel.add(encabezado, BorderLayout.NORTH);
-
-                JScrollPane desplazamiento = new JScrollPane(tablaCronograma);
-                desplazamiento.setBorder(BorderFactory.createLineBorder(BORDE));
-                desplazamiento.setHorizontalScrollBarPolicy(
-                                ScrollPaneConstants.HORIZONTAL_SCROLLBAR_ALWAYS);
-
-                panel.add(desplazamiento, BorderLayout.CENTER);
-
-                return panel;
-        }
-
-        // =========================================================
-        // CPU COMPACTA Y BCP
-        // =========================================================
-
-        private JPanel crearPanelCPUYBCP() {
-
-                JPanel panel = new JPanel(new BorderLayout(8, 8));
-
-                panel.setOpaque(false);
-
-                JPanel superior = new JPanel(new BorderLayout(8, 8));
-
-                superior.setOpaque(false);
-
-                superior.setMinimumSize(
-                                new Dimension(220, 208));
-
-                superior.add(
-                                crearPanelCPU(),
-                                BorderLayout.CENTER);
-
-                JPanel inferior = new JPanel(new BorderLayout(8, 8));
-
-                inferior.setOpaque(false);
-
-                inferior.setMinimumSize(
-                                new Dimension(220, 180));
-
-                inferior.add(
-                                crearPanelBCP(),
-                                BorderLayout.CENTER);
-
-                JSplitPane division = new JSplitPane(
-                                JSplitPane.VERTICAL_SPLIT,
-                                superior,
-                                inferior);
-
-                configurarSplit(
-                                division,
-                                0.40,
-                                240);
-
-                panel.add(
-                                division,
-                                BorderLayout.CENTER);
-
-                return panel;
-        }
-
-        /** El BCP usa tres pestañas y ocupa el espacio bajo la CPU. */
-        private JPanel crearPanelBCP() {
-                JPanel panel = panelSeccion("BCP · Información del proceso seleccionado");
-                pestañasBCP.setFont(fuenteInterfaz(Font.BOLD, 11f));
-                panel.add(pestañasBCP, BorderLayout.CENTER);
-                return panel;
-        }
-
-        /** Sitúa la consola debajo de las pestañas RAM, Disco y Archivos. */
-        private JPanel crearPanelRecursosConMonitor() {
-                JPanel panel = new JPanel(new BorderLayout());
-                panel.setOpaque(false);
-
-                JSplitPane division = new JSplitPane(JSplitPane.VERTICAL_SPLIT,
-                                crearPanelRecursos(), crearPanelConsola());
-                configurarSplit(division, 0.60, 335);
-                panel.add(division, BorderLayout.CENTER);
-                return panel;
-        }
-
-        private JPanel crearPanelCPU() {
-
-                JPanel panel = panelSeccion(
-                                "Procesadores · Estado en tiempo real");
-
-                procesoCPU.setFont(
-                                procesoCPU.getFont().deriveFont(
-                                                Font.BOLD,
-                                                15f));
-
-                procesoCPU.setForeground(AZUL);
-
-                procesoCPU.setHorizontalAlignment(
-                                SwingConstants.LEFT);
-
-                procesoCPU.setBorder(
-                                new EmptyBorder(8, 2, 7, 2));
-
-                /*
-                 * Una sola vista reúne el PID, los contadores de ocupación
-                 * y los registros de la CPU seleccionada.
-                 */
-                JPanel superior = new JPanel(new BorderLayout(8, 0));
-                superior.setOpaque(false);
-                superior.add(procesoCPU, BorderLayout.CENTER);
-
-                JPanel navegacion = new JPanel(new FlowLayout(FlowLayout.RIGHT, 5, 0));
-                navegacion.setOpaque(false);
-
-                cpuAnterior.setToolTipText("Mostrar la CPU anterior");
-                cpuSiguiente.setToolTipText("Mostrar la CPU siguiente");
-                cpuAnterior.setFocusable(false);
-                cpuSiguiente.setFocusable(false);
-                aplicarBotonSecundario(cpuAnterior);
-                aplicarBotonSecundario(cpuSiguiente);
-
-                navegacion.add(cpuAnterior);
-                navegacion.add(cpuSiguiente);
-                superior.add(navegacion, BorderLayout.EAST);
-
-                JPanel registros = new JPanel(new GridLayout(3, 4, 5, 5));
-
-                registros.setOpaque(false);
-
-                registros.setBorder(
-                                new EmptyBorder(2, 4, 2, 4));
-
-                registros.add(
-                                crearCeldaRegistro(
-                                                "PC", valorPC,
-                                                AZUL_SUAVE, AZUL));
-
-                registros.add(
-                                crearCeldaRegistro(
-                                                "IR", valorIR,
-                                                MORADO_SUAVE, MORADO));
-
-                registros.add(
-                                crearCeldaRegistro(
-                                                "AC", valorAC,
-                                                VERDE_SUAVE, VERDE));
-
-                registros.add(
-                                crearCeldaRegistro(
-                                                "ZF", valorZF,
-                                                GRIS_SUAVE, TEXTO_SECUNDARIO));
-
-                registros.add(
-                                crearCeldaRegistro(
-                                                "AX", valorAX,
-                                                PANEL, BORDE));
-
-                registros.add(
-                                crearCeldaRegistro(
-                                                "BX", valorBX,
-                                                PANEL, BORDE));
-
-                registros.add(
-                                crearCeldaRegistro(
-                                                "CX", valorCX,
-                                                PANEL, BORDE));
-
-                registros.add(
-                                crearCeldaRegistro(
-                                                "DX", valorDX,
-                                                PANEL, BORDE));
-
-                registros.add(
-                                crearCeldaRegistro(
-                                                "AH", valorAH,
-                                                PANEL, BORDE));
-
-                registros.add(
-                                crearCeldaRegistro(
-                                                "AL", valorAL,
-                                                PANEL, BORDE));
-
-                registros.add(
-                                crearCeldaRegistro(
-                                                "OCUPADA", tiempoOcupadoCPU,
-                                                VERDE_SUAVE, VERDE));
-
-                registros.add(
-                                crearCeldaRegistro(
-                                                "OCIOSA", tiempoOciosoCPU,
-                                                GRIS_SUAVE, TEXTO_SECUNDARIO));
-
-                panel.add(superior, BorderLayout.NORTH);
-                panel.add(registros, BorderLayout.CENTER);
-
-                return panel;
-        }
-
-        private JPanel crearCeldaRegistro(
-                        String nombre,
-                        JLabel valor,
-                        Color fondo,
-                        Color borde) {
-
-                JPanel celda = new JPanel(new BorderLayout(2, 2));
-
-                celda.setBackground(fondo);
-
-                celda.setBorder(
-                                BorderFactory.createCompoundBorder(
-                                                BorderFactory.createLineBorder(borde),
-                                                new EmptyBorder(3, 6, 3, 6)));
-
-                JLabel etiqueta = new JLabel(nombre);
-
-                etiqueta.setForeground(TEXTO_SECUNDARIO);
-
-                etiqueta.setFont(
-                                etiqueta.getFont().deriveFont(
-                                                Font.BOLD,
-                                                9f));
-
-                valor.setForeground(TEXTO);
-
-                valor.setFont(
-                                new Font(
-                                                Font.MONOSPACED,
-                                                Font.BOLD,
-                                                12));
-
-                celda.add(
-                                etiqueta,
-                                BorderLayout.NORTH);
-
-                celda.add(
-                                valor,
-                                BorderLayout.CENTER);
-
-                return celda;
-        }
-
-        // =========================================================
-        // CONTROLES DE EJECUCION
-        // =========================================================
-
-        private JPanel crearPanelEjecucion() {
-
-                JPanel panel = new JPanel(new BorderLayout(14, 0));
-
-                panel.setBackground(PANEL);
-
-                panel.setBorder(
-                                BorderFactory.createCompoundBorder(
-                                                BorderFactory.createLineBorder(BORDE),
-                                                new EmptyBorder(9, 14, 9, 14)));
-
-                JPanel botones = new JPanel(
-                                new FlowLayout(
-                                                FlowLayout.RIGHT,
-                                                8,
-                                                0));
-
-                botones.setOpaque(false);
-
-                aplicarBotonPrincipal(siguiente);
-                aplicarBotonExito(automatico);
-                aplicarBotonSecundario(pausa);
-
-                siguiente.setText("Siguiente (+1 s)");
-                automatico.setText("Ejecutar");
-
-                botones.add(siguiente);
-                botones.add(automatico);
-                botones.add(pausa);
-
-                estadoSimulacion.setForeground(
-                                TEXTO_SECUNDARIO);
-
-                estadoSimulacion.setFont(
-                                fuenteInterfaz(Font.PLAIN, 11f));
-
-                panel.add(
-                                estadoSimulacion,
-                                BorderLayout.WEST);
-
-                panel.add(
-                                botones,
-                                BorderLayout.EAST);
-
-                return panel;
-        }
-
-        // =========================================================
-        // CONSOLA
-        // =========================================================
-
-        private JPanel crearPanelConsola() {
-
-                JPanel panel = panelSeccion("Monitor / Consola");
-
-                pantalla.setLineWrap(true);
-                pantalla.setWrapStyleWord(true);
-
-                pantalla.setBackground(
-                                new Color(24, 30, 36));
-
-                pantalla.setForeground(
-                                new Color(208, 232, 214));
-
-                pantalla.setCaretColor(Color.WHITE);
-
-                pantalla.setBorder(
-                                new EmptyBorder(10, 10, 10, 10));
-
-                pantalla.setFont(
-                                new Font(
-                                                Font.MONOSPACED,
-                                                Font.PLAIN,
-                                                14));
-
-                JScrollPane scroll = new JScrollPane(pantalla);
-
-                scroll.setBorder(
-                                BorderFactory.createLineBorder(
-                                                new Color(45, 55, 65)));
-
-                scroll.setMinimumSize(
-                                new Dimension(160, 120));
-
-                scroll.setPreferredSize(
-                                new Dimension(400, 200));
-
-                panel.add(
-                                scroll,
-                                BorderLayout.CENTER);
-
-                /*
-                 * Entrada de teclado deshabilitada temporalmente para el Proyecto 2.
-                 * Se conserva este código comentado para restaurarlo si se necesita.
-                 *
-                 * JPanel teclado = new JPanel(new BorderLayout(8, 6));
-                 * 
-                 * teclado.setOpaque(false);
-                 * 
-                 * teclado.setBorder(
-                 * new EmptyBorder(8, 0, 0, 0));
-                 * 
-                 * JLabel etiqueta = new JLabel(
-                 * "Teclado · valor de 0 a 255");
-                 * 
-                 * etiqueta.setFont(
-                 * etiqueta.getFont().deriveFont(
-                 * Font.BOLD));
-                 * 
-                 * entrada.setToolTipText(
-                 * "Valor entero entre 0 y 255");
-                 * 
-                 * aplicarBotonPrincipal(enviar);
-                 * 
-                 * teclado.add(
-                 * etiqueta,
-                 * BorderLayout.NORTH);
-                 * 
-                 * teclado.add(
-                 * entrada,
-                 * BorderLayout.CENTER);
-                 * 
-                 * teclado.add(
-                 * enviar,
-                 * BorderLayout.EAST);
-                 */
-
-                estadoMonitor.setForeground(
-                                TEXTO_SECUNDARIO);
-
-                estadoMonitor.setBorder(
-                                new EmptyBorder(0, 0, 8, 0));
-
-                panel.add(
-                                estadoMonitor,
-                                BorderLayout.NORTH);
-
-                /*
-                 * panel.add(
-                 * teclado,
-                 * BorderLayout.SOUTH);
-                 */
-
-                return panel;
-        }
-
-        // =========================================================
-        // RECURSOS
-        // =========================================================
-
-        private JTabbedPane crearPanelRecursos() {
-
-                JTabbedPane pestanas = new JTabbedPane();
-
-                pestanas.addTab(
-                                "RAM",
-                                crearPanelTabla(
-                                                tablaRam,
-                                                "Memoria principal"));
-
-                pestanas.addTab(
-                                "Disco",
-                                crearPanelTabla(
-                                                tablaAlmacenamiento,
-                                                "Almacenamiento secundario"));
-
-                pestanas.addTab(
-                                "Archivos",
-                                crearPanelTabla(
-                                                tablaArchivos,
-                                                "Archivos simulados"));
-
-                JPanel panelEstadisticas = panelSeccion(
-                                "Estadísticas de procesos");
-
-                estadisticas.setLineWrap(true);
-                estadisticas.setWrapStyleWord(true);
-
-                estadisticas.setBorder(
-                                new EmptyBorder(12, 12, 12, 12));
-
-                panelEstadisticas.add(
-                                new JScrollPane(estadisticas),
-                                BorderLayout.CENTER);
-
-                pestanas.addTab(
-                                "Estadísticas",
-                                panelEstadisticas);
-
-                return pestanas;
-        }
-
-        private JPanel crearPanelTabla(
-                        JTable tabla,
-                        String titulo) {
-
-                JPanel panel = new JPanel(new BorderLayout());
-
-                panel.setBackground(PANEL);
-
-                panel.setBorder(
-                                tituloInterno(titulo));
-
-                panel.add(
-                                new JScrollPane(tabla),
-                                BorderLayout.CENTER);
-
-                return panel;
-        }
-
-        // =========================================================
-        // ESTILOS
-        // =========================================================
-
-        private JPanel panelSeccion(String titulo) {
-
-                JPanel panel = new JPanel(new BorderLayout(6, 6));
-
-                panel.setBackground(PANEL);
-
-                panel.setBorder(
-                                BorderFactory.createCompoundBorder(
-                                                BorderFactory.createLineBorder(BORDE),
-                                                BorderFactory.createCompoundBorder(
-                                                                BorderFactory.createTitledBorder(
-                                                                                BorderFactory.createEmptyBorder(),
-                                                                                titulo,
-                                                                                TitledBorder.LEFT,
-                                                                                TitledBorder.TOP,
-                                                                                fuenteInterfaz(Font.BOLD, 13f),
-                                                                                TEXTO),
-                                                                new EmptyBorder(8, 8, 8, 8))));
-
-                return panel;
-        }
-
-        private TitledBorder tituloInterno(
-                        String titulo) {
-
-                return BorderFactory.createTitledBorder(
+        exterior.setOpaque(false);
+
+        exterior.setBorder(
+                new EmptyBorder(10, 10, 0, 10));
+
+        JPanel barra = new JPanel(new BorderLayout(18, 0));
+
+        barra.setBackground(
+                new Color(19, 35, 56));
+
+        barra.setBorder(
+                new EmptyBorder(16, 18, 16, 18));
+
+        JLabel titulo = new JLabel(
+                "MINI PC  /  CENTRO DE CONTROL");
+
+        titulo.setForeground(Color.WHITE);
+
+        titulo.setFont(
+                titulo.getFont().deriveFont(
+                        Font.BOLD,
+                        19f));
+
+        JLabel subtitulo = new JLabel(
+                "Planificación de procesos · "
+                        + "Ejecución multinúcleo");
+
+        subtitulo.setForeground(
+                new Color(205, 215, 225));
+
+        subtitulo.setFont(
+                subtitulo.getFont().deriveFont(
+                        Font.PLAIN,
+                        12f));
+
+        JPanel identidad = new JPanel(new GridLayout(2, 1));
+
+        identidad.setOpaque(false);
+
+        identidad.add(titulo);
+        identidad.add(subtitulo);
+
+        JPanel acciones = new JPanel(
+                new FlowLayout(
+                        FlowLayout.RIGHT,
+                        5,
+                        0));
+
+        acciones.setOpaque(false);
+
+        JButton configurar = new JButton("Configuración");
+
+        JButton acerca = new JButton("Acerca del dispositivo");
+
+        JButton reiniciar = new JButton("Reiniciar");
+
+        aplicarBotonSecundario(configurar);
+        aplicarBotonSecundario(acerca);
+        aplicarBotonPrincipal(cargar);
+        aplicarBotonSecundario(disco);
+        aplicarBotonPeligro(reiniciar);
+
+        conservar.setOpaque(false);
+        conservar.setForeground(Color.WHITE);
+
+        acciones.add(configurar);
+        acciones.add(acerca);
+        acciones.add(cargar);
+        acciones.add(disco);
+        acciones.add(reiniciar);
+        acciones.add(conservar);
+
+        barra.add(
+                identidad,
+                BorderLayout.WEST);
+
+        JPanel relojCabecera = new JPanel(new GridLayout(2, 1, 0, 3));
+        relojCabecera.setOpaque(false);
+
+        valorReloj.setForeground(Color.WHITE);
+        valorReloj.setFont(fuenteInterfaz(Font.BOLD, 23f));
+        valorReloj.setHorizontalAlignment(SwingConstants.CENTER);
+
+        algoritmoSuperior.setForeground(new Color(204, 221, 244));
+        algoritmoSuperior.setFont(fuenteInterfaz(Font.BOLD, 11f));
+        algoritmoSuperior.setHorizontalAlignment(SwingConstants.CENTER);
+
+        relojCabecera.add(valorReloj);
+        relojCabecera.add(algoritmoSuperior);
+
+        barra.add(relojCabecera, BorderLayout.CENTER);
+
+        barra.add(
+                acciones,
+                BorderLayout.EAST);
+
+        exterior.add(
+                barra,
+                BorderLayout.NORTH);
+
+        exterior.add(
+                crearPanelEjecucion(),
+                BorderLayout.SOUTH);
+
+        configurar.addActionListener(
+                e -> mostrarConfiguracion());
+
+        acerca.addActionListener(
+                e -> mostrarAcercaDispositivo());
+
+        reiniciar.addActionListener(e -> {
+
+            detener();
+
+            if (controlador != null) {
+
+                controlador.reiniciar(
+                        conservar.isSelected());
+            }
+
+            nombres.clear();
+            seleccionado = null;
+            historialEjecucion.clear();
+            cpuSeleccionada = 1;
+
+            actualizar();
+        });
+
+        return exterior;
+    }
+
+    private JPanel crearTarjetaResumen(
+            String titulo,
+            JLabel valor,
+            Color acento,
+            JProgressBar barra) {
+
+        JPanel panel = new JPanel(new BorderLayout(4, 6));
+
+        panel.setBackground(PANEL);
+
+        panel.setBorder(
+                BorderFactory.createCompoundBorder(
+                        BorderFactory.createMatteBorder(
+                                0, 4, 0, 0, acento),
+                        BorderFactory.createCompoundBorder(
                                 BorderFactory.createLineBorder(BORDE),
-                                titulo,
-                                TitledBorder.LEFT,
-                                TitledBorder.TOP,
-                                fuenteInterfaz(Font.BOLD, 12f),
-                                TEXTO_SECUNDARIO);
+                                new EmptyBorder(10, 14, 10, 14))));
+
+        JLabel etiqueta = new JLabel(titulo);
+
+        etiqueta.setForeground(TEXTO_SECUNDARIO);
+
+        etiqueta.setFont(
+                etiqueta.getFont().deriveFont(
+                        Font.BOLD,
+                        11f));
+
+        valor.setForeground(TEXTO);
+
+        valor.setFont(
+                valor.getFont().deriveFont(
+                        Font.BOLD,
+                        17f));
+
+        panel.add(
+                etiqueta,
+                BorderLayout.NORTH);
+
+        panel.add(
+                valor,
+                BorderLayout.CENTER);
+
+        if (barra != null) {
+
+            barra.setStringPainted(true);
+
+            barra.setPreferredSize(
+                    new Dimension(100, 15));
+
+            panel.add(
+                    barra,
+                    BorderLayout.SOUTH);
         }
 
-        private Font fuenteInterfaz(
-                        int estilo,
-                        float tamaño) {
+        return panel;
+    }
 
-                Font fuente = UIManager.getFont("Label.font");
+    // =========================================================
+    // VENTANAS DE CONFIGURACIÓN Y ACERCA DEL DISPOSITIVO
+    // =========================================================
 
-                if (fuente == null) {
+    /**
+     * Agrupa la configuración de CPU y algoritmo en una ventana.
+     * La RAM y el disco continúan configurándose desde el archivo
+     * de configuración hasta implementar su edición directa.
+     */
+    private void mostrarConfiguracion() {
 
-                        fuente = new Font(
-                                        Font.SANS_SERIF,
-                                        Font.PLAIN,
-                                        12);
+        if (controlador == null) {
+            JOptionPane.showMessageDialog(this,
+                    "Primero debe cargar la configuración inicial.",
+                    "Configuración", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        boolean editable = controlador.getTiempoSimulado() == 0
+                && !continuarAutomatico;
+
+        ajustandoControles = true;
+        try {
+            cantidadCPU.setValue(controlador.getCantidadCPU());
+            algoritmos.setSelectedItem(controlador.getAlgoritmoSeleccionado());
+            quantumRR.setValue(controlador.getQuantumRR());
+        } finally {
+            ajustandoControles = false;
+        }
+
+        cantidadCPU.setEnabled(editable);
+        algoritmos.setEnabled(editable);
+        quantumRR.setEnabled(editable);
+
+        JDialog ventana = new JDialog(this, "Configuración de la Mini PC", true);
+        ventana.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+        ventana.setLayout(new BorderLayout(12, 12));
+
+        JPanel contenido = new JPanel(new BorderLayout(12, 14));
+        contenido.setBackground(FONDO);
+        contenido.setBorder(new EmptyBorder(18, 18, 8, 18));
+
+        JLabel titulo = new JLabel("Configuración del procesador");
+        titulo.setFont(fuenteInterfaz(Font.BOLD, 18f));
+        titulo.setForeground(TEXTO);
+        contenido.add(titulo, BorderLayout.NORTH);
+
+        JPanel formulario = new JPanel(new GridLayout(5, 2, 10, 12));
+        formulario.setOpaque(false);
+
+        formulario.add(new JLabel("Cantidad de CPU (1 a 5):"));
+        formulario.add(cantidadCPU);
+        formulario.add(new JLabel("Algoritmo de planificación:"));
+        formulario.add(algoritmos);
+        formulario.add(new JLabel("Quantum RR (segundos):"));
+        formulario.add(quantumRR);
+        formulario.add(new JLabel("RAM total / Kernel:"));
+        formulario.add(new JLabel(configuracion.getTamañoMemoria()
+                + " / " + configuracion.getInicioUsuario() + " posiciones"));
+        formulario.add(new JLabel("Almacenamiento:"));
+        formulario.add(new JLabel(configuracion.getTamañoAlmacenamiento()
+                + " posiciones"));
+
+        JPanel centro = new JPanel(new BorderLayout(4, 12));
+        centro.setOpaque(false);
+        centro.add(formulario, BorderLayout.NORTH);
+
+        JLabel ayuda = new JLabel("<html><div style='width:395px'>"
+                + (editable
+                        ? "Los cambios de CPU, algoritmo y quantum se guardan al presionar Aplicar. "
+                        : "La simulación ya comenzó: no se permiten cambios de CPU o algoritmo. ")
+                + "La memoria y el disco se podrán editar aquí más adelante; "
+                + "por ahora se leen del archivo de configuración.</div></html>");
+        ayuda.setForeground(TEXTO_SECUNDARIO);
+        centro.add(ayuda, BorderLayout.CENTER);
+
+        contenido.add(centro, BorderLayout.CENTER);
+
+        JPanel botones = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 8));
+        botones.setOpaque(false);
+
+        JButton abrirArchivo = new JButton("Cargar archivo...");
+        JButton cancelar = new JButton("Cancelar");
+        JButton aplicar = new JButton("Aplicar");
+        aplicarBotonPrincipal(aplicar);
+
+        aplicar.setEnabled(editable);
+
+        abrirArchivo.addActionListener(e -> {
+            ventana.dispose();
+            elegirConfiguracion();
+        });
+
+        cancelar.addActionListener(e -> {
+            ventana.dispose();
+            actualizar();
+        });
+
+        aplicar.addActionListener(e -> {
+            try {
+                TipoAlgoritmo seleccionadoAlgoritmo =
+                        (TipoAlgoritmo) algoritmos.getSelectedItem();
+
+                if (seleccionadoAlgoritmo == null) {
+                    throw new IllegalArgumentException(
+                            "Seleccione un algoritmo antes de continuar.");
                 }
 
-                return fuente.deriveFont(
-                                estilo,
-                                tamaño);
+                controlador.configurarCantidadCPU((Integer) cantidadCPU.getValue());
+                controlador.configurarQuantumRR((Integer) quantumRR.getValue());
+                controlador.configurarAlgoritmo(seleccionadoAlgoritmo);
+                cpuSeleccionada = Math.min(cpuSeleccionada, controlador.getCantidadCPU());
+
+                ventana.dispose();
+                actualizar();
+
+            } catch (RuntimeException error) {
+                mostrarError(error);
+                actualizar();
+            }
+        });
+
+        botones.add(abrirArchivo);
+        botones.add(cancelar);
+        botones.add(aplicar);
+
+        ventana.add(contenido, BorderLayout.CENTER);
+        ventana.add(botones, BorderLayout.SOUTH);
+        ventana.setSize(545, 365);
+        ventana.setLocationRelativeTo(this);
+        ventana.setVisible(true);
+    }
+
+    /** Muestra las características y los recursos del dispositivo. */
+    private void mostrarAcercaDispositivo() {
+
+        actualizar();
+
+        JDialog ventana = new JDialog(this, "Acerca del dispositivo", true);
+        ventana.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+        ventana.setLayout(new BorderLayout(12, 12));
+
+        JPanel contenido = new JPanel(new BorderLayout(12, 12));
+        contenido.setBackground(FONDO);
+        contenido.setBorder(new EmptyBorder(18, 18, 18, 18));
+
+        JLabel titulo = new JLabel("Mini PC · Información del dispositivo");
+        titulo.setFont(fuenteInterfaz(Font.BOLD, 19f));
+        titulo.setForeground(TEXTO);
+
+        JLabel subtitulo = new JLabel(
+                "Estado actual del procesador, la memoria y el almacenamiento.");
+        subtitulo.setForeground(TEXTO_SECUNDARIO);
+
+        JPanel cabecera = new JPanel(new GridLayout(2, 1, 0, 5));
+        cabecera.setOpaque(false);
+        cabecera.add(titulo);
+        cabecera.add(subtitulo);
+        contenido.add(cabecera, BorderLayout.NORTH);
+
+        JPanel tarjetas = new JPanel(new GridLayout(2, 3, 12, 12));
+        tarjetas.setOpaque(false);
+
+        tarjetas.add(crearTarjetaResumen("CPU CONFIGURADAS", valorNucleos, VERDE, null));
+        tarjetas.add(crearTarjetaResumen("RAM USUARIO", valorRAM, AZUL, barraRAM));
+        tarjetas.add(crearTarjetaResumen("KERNEL / SO", valorKernel, MORADO, null));
+        tarjetas.add(crearTarjetaResumen("PROGRAMAS EN RAM", valorProgramasEnRAM, VERDE, null));
+        tarjetas.add(crearTarjetaResumen("DISCO", valorDisco, NARANJA, barraDisco));
+
+        JLabel algoritmo = new JLabel(controlador == null
+                || controlador.getAlgoritmoSeleccionado() == null
+                        ? "Sin seleccionar"
+                        : controlador.getAlgoritmoSeleccionado().name());
+        tarjetas.add(crearTarjetaResumen("ALGORITMO", algoritmo, AZUL, null));
+
+        contenido.add(tarjetas, BorderLayout.CENTER);
+
+        JButton cerrar = new JButton("Cerrar");
+        aplicarBotonPrincipal(cerrar);
+        cerrar.addActionListener(e -> ventana.dispose());
+
+        JPanel pie = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        pie.setOpaque(false);
+        pie.add(cerrar);
+
+        ventana.add(contenido, BorderLayout.CENTER);
+        ventana.add(pie, BorderLayout.SOUTH);
+        ventana.setSize(760, 395);
+        ventana.setLocationRelativeTo(this);
+        ventana.setVisible(true);
+    }
+
+    // =========================================================
+    // PROCESOS Y BCP
+    // =========================================================
+
+    private JPanel crearPanelProcesos() {
+
+        JPanel panel = panelSeccion("Procesos · Vista general");
+
+        JPanel filtros = new JPanel(new BorderLayout(8, 6));
+        filtros.setOpaque(false);
+
+        buscarProcesos.setToolTipText("Filtrar por PID o nombre de archivo ASM");
+        buscarProcesos.putClientProperty("JTextField.placeholderText", "Buscar PID o programa...");
+
+        JLabel buscar = new JLabel("Buscar:");
+        buscar.setForeground(TEXTO_SECUNDARIO);
+
+        JPanel busqueda = new JPanel(new BorderLayout(6, 0));
+        busqueda.setOpaque(false);
+        busqueda.add(buscar, BorderLayout.WEST);
+        busqueda.add(buscarProcesos, BorderLayout.CENTER);
+
+        mostrarFinalizados.setOpaque(false);
+        mostrarFinalizados.setFont(fuenteInterfaz(Font.PLAIN, 11f));
+
+        contadorProcesos.setForeground(TEXTO_SECUNDARIO);
+        contadorProcesos.setFont(fuenteInterfaz(Font.PLAIN, 11f));
+
+        filtros.add(busqueda, BorderLayout.CENTER);
+        filtros.add(mostrarFinalizados, BorderLayout.EAST);
+        filtros.add(contadorProcesos, BorderLayout.SOUTH);
+
+        panel.add(filtros, BorderLayout.NORTH);
+
+        contenedorTarjetas.setLayout(new BoxLayout(contenedorTarjetas, BoxLayout.Y_AXIS));
+        contenedorTarjetas.setBackground(new Color(247, 249, 252));
+        contenedorTarjetas.setBorder(new EmptyBorder(8, 8, 8, 8));
+
+        scrollTarjetas.setBorder(BorderFactory.createLineBorder(BORDE));
+        scrollTarjetas.getVerticalScrollBar().setUnitIncrement(24);
+        scrollTarjetas.setHorizontalScrollBarPolicy(
+                ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+
+        panel.add(scrollTarjetas, BorderLayout.CENTER);
+
+        return panel;
+    }
+
+    /**
+     * Ordena visualmente los procesos por estado y luego por PID.
+     * Los nuevos aparecen primero y los finalizados al final.
+     */
+    private static int ordenEstado(EstadoProceso estado) {
+        return switch (estado) {
+            case NUEVO -> 0;
+            case PREPARADO -> 1;
+            case EJECUCION -> 2;
+            case BLOQUEADO -> 3;
+            case PREPARADO_SUSPENDIDO -> 4;
+            case BLOQUEADO_SUSPENDIDO -> 5;
+            case FINALIZADO -> 6;
+        };
+    }
+
+    /** Obtiene el título legible de cada agrupación de procesos. */
+    private static String nombreGrupo(EstadoProceso estado) {
+        return switch (estado) {
+            case NUEVO -> "Nuevos";
+            case PREPARADO -> "Preparados";
+            case EJECUCION -> "En ejecución";
+            case BLOQUEADO -> "Bloqueados";
+            case PREPARADO_SUSPENDIDO -> "Preparados suspendidos";
+            case BLOQUEADO_SUSPENDIDO -> "Bloqueados suspendidos";
+            case FINALIZADO -> "Finalizados";
+        };
+    }
+
+    /**
+     * Construye los grupos de tarjetas en orden de estado.
+     * Cada grupo coloca sus procesos de izquierda a derecha.
+     */
+    private void actualizarTarjetasProcesos() {
+
+        int desplazamiento = scrollTarjetas.getVerticalScrollBar().getValue();
+
+        contenedorTarjetas.removeAll();
+
+        if (controlador == null) {
+            contadorProcesos.setText("Sin procesos cargados");
+            contenedorTarjetas.revalidate();
+            contenedorTarjetas.repaint();
+            return;
         }
 
-        private void configurarSplit(
-                        JSplitPane split,
-                        double peso,
-                        int posicion) {
+        java.util.List<BCP> procesos = new java.util.ArrayList<>(
+                controlador.getGestorProcesos().getListaTrabajos());
 
-                split.setBorder(null);
+        procesos.sort((a, b) -> {
+            int comparacion = Integer.compare(ordenEstado(a.getEstado()),
+                    ordenEstado(b.getEstado()));
+            return comparacion != 0
+                    ? comparacion : Integer.compare(a.getPid(), b.getPid());
+        });
 
-                split.setContinuousLayout(true);
+        String filtro = buscarProcesos.getText().trim().toLowerCase(java.util.Locale.ROOT);
+        int visibles = 0;
+        int finalizados = 0;
 
-                split.setResizeWeight(peso);
-
-                split.setDividerLocation(posicion);
-
-                split.setDividerSize(7);
+        for (BCP p : procesos) {
+            if (p.getEstado() == EstadoProceso.FINALIZADO) {
+                finalizados++;
+            }
         }
 
-        private void configurarBotones() {
+        for (EstadoProceso estado : new EstadoProceso[] {
+                EstadoProceso.NUEVO,
+                EstadoProceso.PREPARADO,
+                EstadoProceso.EJECUCION,
+                EstadoProceso.BLOQUEADO,
+                EstadoProceso.PREPARADO_SUSPENDIDO,
+                EstadoProceso.BLOQUEADO_SUSPENDIDO,
+                EstadoProceso.FINALIZADO
+        }) {
 
-                conservar.setFocusPainted(false);
+            if (estado == EstadoProceso.FINALIZADO
+                    && !mostrarFinalizados.isSelected()) {
+                continue;
+            }
 
-                entrada.setFont(
-                                new Font(
-                                                Font.MONOSPACED,
-                                                Font.PLAIN,
-                                                13));
+            java.util.List<BCP> grupo = new java.util.ArrayList<>();
 
-                pantalla.setEditable(false);
+            for (BCP proceso : procesos) {
+                if (proceso.getEstado() != estado) {
+                    continue;
+                }
+
+                String nombre = nombres.getOrDefault(proceso.getPid(), "");
+                String consulta = ("pid " + proceso.getPid() + " " + nombre
+                        + " " + proceso.getEstado()).toLowerCase(java.util.Locale.ROOT);
+
+                if (filtro.isEmpty() || consulta.contains(filtro)
+                        || Integer.toString(proceso.getPid()).equals(filtro)) {
+                    grupo.add(proceso);
+                }
+            }
+
+            if (grupo.isEmpty()) {
+                continue;
+            }
+
+            visibles += grupo.size();
+
+            JPanel seccion = new JPanel(new BorderLayout(0, 7));
+            seccion.setOpaque(false);
+            seccion.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+            JLabel titulo = new JLabel(nombreGrupo(estado)
+                    + "  ·  " + grupo.size());
+            titulo.setForeground(estado == EstadoProceso.FINALIZADO
+                    ? TEXTO_SECUNDARIO : TEXTO);
+            titulo.setFont(fuenteInterfaz(Font.BOLD, 13f));
+            titulo.setBorder(new EmptyBorder(2, 2, 3, 0));
+
+            JPanel tarjetas = new JPanel(new GridLayout(0, 2, 10, 10));
+            tarjetas.setOpaque(false);
+
+            for (BCP proceso : grupo) {
+                tarjetas.add(crearTarjetaProceso(proceso));
+            }
+
+            seccion.add(titulo, BorderLayout.NORTH);
+            seccion.add(tarjetas, BorderLayout.CENTER);
+            seccion.setMaximumSize(new Dimension(Integer.MAX_VALUE,
+                    seccion.getPreferredSize().height));
+
+            contenedorTarjetas.add(seccion);
+            contenedorTarjetas.add(Box.createVerticalStrut(12));
         }
 
-        private void aplicarBotonPrincipal(
-                        JButton boton) {
+        contadorProcesos.setText(procesos.size() + " procesos · "
+                + visibles + " visibles · " + finalizados + " finalizados");
 
-                aplicarEstiloBoton(
-                                boton,
-                                AZUL,
-                                Color.WHITE);
+        if (visibles == 0) {
+            JLabel vacio = new JLabel("No hay procesos con ese filtro.");
+            vacio.setForeground(TEXTO_SECUNDARIO);
+            vacio.setBorder(new EmptyBorder(15, 10, 15, 10));
+            vacio.setAlignmentX(Component.LEFT_ALIGNMENT);
+            contenedorTarjetas.add(vacio);
         }
 
-        private void aplicarBotonExito(
-                        JButton boton) {
+        contenedorTarjetas.revalidate();
+        contenedorTarjetas.repaint();
 
-                aplicarEstiloBoton(
-                                boton,
-                                VERDE,
-                                Color.WHITE);
+        SwingUtilities.invokeLater(() -> scrollTarjetas.getVerticalScrollBar()
+                .setValue(desplazamiento));
+    }
+
+    /**
+     * Crea una tarjeta compacta con PID, CPU, estado, ráfaga y llegada.
+     * Incluye acceso al BCP sin desplazar horizontalmente una tabla.
+     */
+    private JPanel crearTarjetaProceso(BCP proceso) {
+
+        int cpuId = proceso.getCpuAsignada();
+        boolean seleccionadoAhora = seleccionado != null
+                && seleccionado == proceso.getPid();
+
+        JPanel tarjeta = new JPanel(new BorderLayout(5, 8));
+        tarjeta.setBackground(seleccionadoAhora
+                ? fondoCPU(cpuId) : PANEL);
+        tarjeta.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(1, 5, 1, 1, colorCPU(cpuId)),
+                new EmptyBorder(9, 10, 9, 10)));
+        tarjeta.setPreferredSize(new Dimension(210, 151));
+
+        JPanel superior = new JPanel(new BorderLayout(4, 0));
+        superior.setOpaque(false);
+
+        JLabel pid = new JLabel("PID " + proceso.getPid());
+        pid.setFont(fuenteInterfaz(Font.BOLD, 15f));
+        pid.setForeground(TEXTO);
+
+        JLabel cpu = new JLabel(cpuId < 1 ? "Sin CPU" : "CPU " + cpuId);
+        cpu.setFont(fuenteInterfaz(Font.BOLD, 11f));
+        cpu.setForeground(colorCPU(cpuId));
+
+        superior.add(pid, BorderLayout.WEST);
+        superior.add(cpu, BorderLayout.EAST);
+
+        JPanel informacion = new JPanel(new GridLayout(3, 1, 0, 3));
+        informacion.setOpaque(false);
+
+        String nombre = nombres.getOrDefault(proceso.getPid(),
+                "Programa " + proceso.getPid());
+        JLabel programa = new JLabel(nombre);
+        programa.setToolTipText(nombre);
+        programa.setForeground(TEXTO);
+        programa.setFont(fuenteInterfaz(Font.BOLD, 12f));
+
+        JLabel estado = new JLabel(nombreGrupo(proceso.getEstado())
+                + "  ·  Restante: " + proceso.getTiempoRestante() + " s");
+        estado.setForeground(TEXTO_SECUNDARIO);
+        estado.setFont(fuenteInterfaz(Font.PLAIN, 11f));
+
+        JProgressBar avance = new JProgressBar(0, Math.max(1, proceso.getRafaga()));
+        avance.setValue(Math.min(proceso.getTiempoCPU(), avance.getMaximum()));
+        avance.setForeground(colorCPU(cpuId));
+        avance.setBackground(GRIS_SUAVE);
+        avance.setPreferredSize(new Dimension(100, 8));
+
+        informacion.add(programa);
+        informacion.add(estado);
+        informacion.add(avance);
+
+        JPanel inferior = new JPanel(new BorderLayout(5, 0));
+        inferior.setOpaque(false);
+
+        boolean editable = controlador.getTiempoSimulado() == 0
+                && proceso.getEstado() == EstadoProceso.NUEVO
+                && !continuarAutomatico;
+
+        if (editable) {
+            JSpinner llegada = new JSpinner(new SpinnerNumberModel(
+                    proceso.getTiempoLlegada(), 0, 100000, 1));
+            llegada.setToolTipText("Editar llegada de este proceso");
+            llegada.setPreferredSize(new Dimension(90, 29));
+            llegada.addChangeListener(e -> {
+                try {
+                    controlador.configurarLlegada(proceso.getPid(),
+                            (Integer) llegada.getValue());
+                    actualizarDetalle();
+                } catch (RuntimeException error) {
+                    mostrarError(error);
+                }
+            });
+            inferior.add(llegada, BorderLayout.WEST);
+        } else {
+            JLabel llegada = new JLabel("Llegada: "
+                    + proceso.getTiempoLlegada() + " s");
+            llegada.setFont(fuenteInterfaz(Font.PLAIN, 11f));
+            llegada.setForeground(TEXTO_SECUNDARIO);
+            inferior.add(llegada, BorderLayout.WEST);
         }
 
-        private void aplicarBotonAdvertencia(
-                        JButton boton) {
+        JButton consultar = new JButton("Ver BCP");
+        consultar.setFont(fuenteInterfaz(Font.BOLD, 11f));
+        consultar.addActionListener(e -> seleccionarProcesoCronograma(proceso.getPid()));
+        inferior.add(consultar, BorderLayout.EAST);
 
-                aplicarEstiloBoton(
-                                boton,
-                                NARANJA,
-                                Color.WHITE);
+        tarjeta.add(superior, BorderLayout.NORTH);
+        tarjeta.add(informacion, BorderLayout.CENTER);
+        tarjeta.add(inferior, BorderLayout.SOUTH);
+
+        return tarjeta;
+    }
+
+    // =========================================================
+    // CRONOGRAMA DE EJECUCIÓN
+    // =========================================================
+
+    /**
+     * Construye la línea de tiempo solicitada: núcleo, proceso
+     * y una columna por segundo simulado.
+     *
+     * Una CPU puede aparecer en varias filas si tiene varios
+     * procesos asignados. Sus celdas conservan el mismo color.
+     */
+    private JPanel crearPanelCronograma() {
+
+        JPanel panel = panelSeccion("Cronograma de ejecución · 1 columna = 1 segundo");
+
+        JPanel encabezado = new JPanel(new BorderLayout(10, 0));
+        encabezado.setOpaque(false);
+
+        JPanel leyenda = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        leyenda.setOpaque(false);
+
+        for (int cpuId = 1; cpuId <= COLORES_CPU.length; cpuId++) {
+            JLabel indicador = new JLabel("■ CPU " + cpuId);
+            indicador.setForeground(colorCPU(cpuId));
+            indicador.setFont(fuenteInterfaz(Font.BOLD, 11f));
+            leyenda.add(indicador);
         }
 
-        private void aplicarBotonPeligro(
-                        JButton boton) {
+        encabezado.add(leyenda, BorderLayout.CENTER);
 
-                aplicarEstiloBoton(
-                                boton,
-                                ROJO,
-                                Color.WHITE);
-        }
+        JPanel controles = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
+        controles.setOpaque(false);
+        seguirCronograma.setOpaque(false);
 
-        private void aplicarBotonSecundario(
-                        JButton boton) {
+        JButton volverInicio = new JButton("Inicio");
+        volverInicio.addActionListener(e -> desplazarCronograma(1));
 
-                aplicarEstiloBoton(
-                                boton,
-                                new Color(89, 101, 114),
-                                Color.WHITE);
-        }
+        JButton verActual = new JButton("Último segundo");
+        verActual.addActionListener(e -> desplazarCronograma(
+                controlador == null ? 1 : controlador.getTiempoSimulado()));
 
-        private void aplicarEstiloBoton(
-                        JButton boton,
-                        Color fondo,
-                        Color texto) {
+        controles.add(resumenCronograma);
+        controles.add(seguirCronograma);
+        controles.add(volverInicio);
+        controles.add(verActual);
 
-                boton.setFocusPainted(false);
-                boton.setBackground(fondo);
-                boton.setForeground(texto);
-                boton.setOpaque(true);
+        encabezado.add(controles, BorderLayout.EAST);
+        panel.add(encabezado, BorderLayout.NORTH);
 
-                boton.setBorder(
-                                BorderFactory.createCompoundBorder(
-                                                BorderFactory.createLineBorder(
-                                                                fondo.darker()),
-                                                new EmptyBorder(6, 10, 6, 10)));
-        }
+        JScrollPane desplazamiento = new JScrollPane(tablaCronograma);
+        desplazamiento.setBorder(BorderFactory.createLineBorder(BORDE));
+        desplazamiento.setHorizontalScrollBarPolicy(
+                ScrollPaneConstants.HORIZONTAL_SCROLLBAR_ALWAYS);
 
-        private static JLabel valorRegistro(
-                        String texto) {
+        panel.add(desplazamiento, BorderLayout.CENTER);
 
-                JLabel label = new JLabel(texto);
+        return panel;
+    }
 
-                label.setHorizontalAlignment(
-                                SwingConstants.LEFT);
+    // =========================================================
+    // CPU COMPACTA Y BCP
+    // =========================================================
 
-                return label;
-        }
+    private JPanel crearPanelCPUYBCP() {
 
-        private static JTextArea texto() {
+        JPanel panel = new JPanel(new BorderLayout(8, 8));
 
-                JTextArea area = new JTextArea();
+        panel.setOpaque(false);
 
-                area.setEditable(false);
+        JPanel superior = new JPanel(new BorderLayout(8, 8));
 
-                area.setFont(
-                                new Font(
-                                                Font.MONOSPACED,
-                                                Font.PLAIN,
-                                                13));
+        superior.setOpaque(false);
 
-                return area;
-        }
+        superior.setMinimumSize(
+                new Dimension(220, 208));
 
-        private static DefaultTableModel modelo(
-                        String... columnas) {
+        superior.add(
+                crearPanelCPU(),
+                BorderLayout.CENTER);
 
-                return new DefaultTableModel(
-                                columnas, 0) {
+        JPanel inferior = new JPanel(new BorderLayout(8, 8));
 
-                        @Override
-                        public boolean isCellEditable(
-                                        int fila,
-                                        int columna) {
+        inferior.setOpaque(false);
 
-                                return false;
-                        }
-                };
-        }
+        inferior.setMinimumSize(
+                new Dimension(220, 180));
 
-        /**
-         * Prepara las 80 primeras columnas de tiempo y permite extender
-         * el cronograma si la simulación supera los 80 segundos.
+        inferior.add(
+                crearPanelBCP(),
+                BorderLayout.CENTER);
+
+        JSplitPane division = new JSplitPane(
+                JSplitPane.VERTICAL_SPLIT,
+                superior,
+                inferior);
+
+        configurarSplit(
+                division,
+                0.40,
+                240);
+
+        panel.add(
+                division,
+                BorderLayout.CENTER);
+
+        return panel;
+    }
+
+    /** El BCP usa tres pestañas y ocupa el espacio bajo la CPU. */
+    private JPanel crearPanelBCP() {
+        JPanel panel = panelSeccion("BCP · Información del proceso seleccionado");
+        pestañasBCP.setFont(fuenteInterfaz(Font.BOLD, 11f));
+        panel.add(pestañasBCP, BorderLayout.CENTER);
+        return panel;
+    }
+
+    /** Sitúa la consola debajo de las pestañas RAM, Disco y Archivos. */
+    private JPanel crearPanelRecursosConMonitor() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setOpaque(false);
+
+        JSplitPane division = new JSplitPane(JSplitPane.VERTICAL_SPLIT,
+                crearPanelRecursos(), crearPanelConsola());
+        configurarSplit(division, 0.60, 335);
+        panel.add(division, BorderLayout.CENTER);
+        return panel;
+    }
+
+    private JPanel crearPanelCPU() {
+
+        JPanel panel = panelSeccion(
+                "Procesadores · Estado en tiempo real");
+
+        procesoCPU.setFont(
+                procesoCPU.getFont().deriveFont(
+                        Font.BOLD,
+                        15f));
+
+        procesoCPU.setForeground(AZUL);
+
+        procesoCPU.setHorizontalAlignment(
+                SwingConstants.LEFT);
+
+        procesoCPU.setBorder(
+                new EmptyBorder(8, 2, 7, 2));
+
+        /*
+         * Una sola vista reúne el PID, los contadores de ocupación
+         * y los registros de la CPU seleccionada.
          */
-        private void configurarCronograma() {
+        JPanel superior = new JPanel(new BorderLayout(8, 0));
+        superior.setOpaque(false);
+        superior.add(procesoCPU, BorderLayout.CENTER);
 
-                tablaCronograma.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
-                tablaCronograma.setFillsViewportHeight(true);
-                tablaCronograma.setRowHeight(27);
-                tablaCronograma.setGridColor(BORDE);
-                tablaCronograma.setIntercellSpacing(new Dimension(1, 1));
-                tablaCronograma.setCellSelectionEnabled(true);
-                tablaCronograma.getTableHeader().setReorderingAllowed(false);
-                tablaCronograma.getTableHeader().setFont(fuenteInterfaz(Font.BOLD, 11f));
-                tablaCronograma.getTableHeader().setBackground(new Color(226, 233, 243));
-                tablaCronograma.setDefaultRenderer(Object.class, new RenderizadorCronograma());
+        JPanel navegacion = new JPanel(new FlowLayout(FlowLayout.RIGHT, 5, 0));
+        navegacion.setOpaque(false);
 
-                for (int segundo = 1; segundo <= SEGUNDOS_CRONOGRAMA_INICIALES; segundo++) {
-                        modeloCronograma.addColumn(Integer.toString(segundo));
-                }
+        cpuAnterior.setToolTipText("Mostrar la CPU anterior");
+        cpuSiguiente.setToolTipText("Mostrar la CPU siguiente");
+        cpuAnterior.setFocusable(false);
+        cpuSiguiente.setFocusable(false);
+        aplicarBotonSecundario(cpuAnterior);
+        aplicarBotonSecundario(cpuSiguiente);
 
-                tablaCronograma.getColumnModel().getColumn(0).setPreferredWidth(90);
-                tablaCronograma.getColumnModel().getColumn(1).setPreferredWidth(190);
+        navegacion.add(cpuAnterior);
+        navegacion.add(cpuSiguiente);
+        superior.add(navegacion, BorderLayout.EAST);
 
-                for (int columna = 2; columna < modeloCronograma.getColumnCount(); columna++) {
-                        tablaCronograma.getColumnModel().getColumn(columna).setPreferredWidth(40);
-                }
+        JPanel registros = new JPanel(new GridLayout(3, 4, 5, 5));
+
+        registros.setOpaque(false);
+
+        registros.setBorder(
+                new EmptyBorder(2, 4, 2, 4));
+
+        registros.add(
+                crearCeldaRegistro(
+                        "PC", valorPC,
+                        AZUL_SUAVE, AZUL));
+
+        registros.add(
+                crearCeldaRegistro(
+                        "IR", valorIR,
+                        MORADO_SUAVE, MORADO));
+
+        registros.add(
+                crearCeldaRegistro(
+                        "AC", valorAC,
+                        VERDE_SUAVE, VERDE));
+
+        registros.add(
+                crearCeldaRegistro(
+                        "ZF", valorZF,
+                        GRIS_SUAVE, TEXTO_SECUNDARIO));
+
+        registros.add(
+                crearCeldaRegistro(
+                        "AX", valorAX,
+                        PANEL, BORDE));
+
+        registros.add(
+                crearCeldaRegistro(
+                        "BX", valorBX,
+                        PANEL, BORDE));
+
+        registros.add(
+                crearCeldaRegistro(
+                        "CX", valorCX,
+                        PANEL, BORDE));
+
+        registros.add(
+                crearCeldaRegistro(
+                        "DX", valorDX,
+                        PANEL, BORDE));
+
+        registros.add(
+                crearCeldaRegistro(
+                        "AH", valorAH,
+                        PANEL, BORDE));
+
+        registros.add(
+                crearCeldaRegistro(
+                        "AL", valorAL,
+                        PANEL, BORDE));
+
+        registros.add(
+                crearCeldaRegistro(
+                        "OCUPADA", tiempoOcupadoCPU,
+                        VERDE_SUAVE, VERDE));
+
+        registros.add(
+                crearCeldaRegistro(
+                        "OCIOSA", tiempoOciosoCPU,
+                        GRIS_SUAVE, TEXTO_SECUNDARIO));
+
+        panel.add(superior, BorderLayout.NORTH);
+        panel.add(registros, BorderLayout.CENTER);
+
+        return panel;
+    }
+
+    private JPanel crearCeldaRegistro(
+            String nombre,
+            JLabel valor,
+            Color fondo,
+            Color borde) {
+
+        JPanel celda = new JPanel(new BorderLayout(2, 2));
+
+        celda.setBackground(fondo);
+
+        celda.setBorder(
+                BorderFactory.createCompoundBorder(
+                        BorderFactory.createLineBorder(borde),
+                        new EmptyBorder(3, 6, 3, 6)));
+
+        JLabel etiqueta = new JLabel(nombre);
+
+        etiqueta.setForeground(TEXTO_SECUNDARIO);
+
+        etiqueta.setFont(
+                etiqueta.getFont().deriveFont(
+                        Font.BOLD,
+                        9f));
+
+        valor.setForeground(TEXTO);
+
+        valor.setFont(
+                new Font(
+                        Font.MONOSPACED,
+                        Font.BOLD,
+                        12));
+
+        celda.add(
+                etiqueta,
+                BorderLayout.NORTH);
+
+        celda.add(
+                valor,
+                BorderLayout.CENTER);
+
+        return celda;
+    }
+
+    // =========================================================
+    // CONTROLES DE EJECUCION
+    // =========================================================
+
+    private JPanel crearPanelEjecucion() {
+
+        JPanel panel = new JPanel(new BorderLayout(14, 0));
+
+        panel.setBackground(PANEL);
+
+        panel.setBorder(
+                BorderFactory.createCompoundBorder(
+                        BorderFactory.createLineBorder(BORDE),
+                        new EmptyBorder(9, 14, 9, 14)));
+
+        JPanel botones = new JPanel(
+                new FlowLayout(
+                        FlowLayout.RIGHT,
+                        8,
+                        0));
+
+        botones.setOpaque(false);
+
+        aplicarBotonPrincipal(siguiente);
+        aplicarBotonExito(automatico);
+        aplicarBotonSecundario(pausa);
+
+        siguiente.setText("Siguiente (+1 s)");
+        automatico.setText("Ejecutar");
+
+        botones.add(siguiente);
+        botones.add(automatico);
+        botones.add(pausa);
+
+        estadoSimulacion.setForeground(
+                TEXTO_SECUNDARIO);
+
+        estadoSimulacion.setFont(
+                fuenteInterfaz(Font.PLAIN, 11f));
+
+        panel.add(
+                estadoSimulacion,
+                BorderLayout.WEST);
+
+        panel.add(
+                botones,
+                BorderLayout.EAST);
+
+        return panel;
+    }
+
+    // =========================================================
+    // CONSOLA
+    // =========================================================
+
+    private JPanel crearPanelConsola() {
+
+        JPanel panel = panelSeccion("Monitor / Consola");
+
+        pantalla.setLineWrap(true);
+        pantalla.setWrapStyleWord(true);
+
+        pantalla.setBackground(
+                new Color(24, 30, 36));
+
+        pantalla.setForeground(
+                new Color(208, 232, 214));
+
+        pantalla.setCaretColor(Color.WHITE);
+
+        pantalla.setBorder(
+                new EmptyBorder(10, 10, 10, 10));
+
+        pantalla.setFont(
+                new Font(
+                        Font.MONOSPACED,
+                        Font.PLAIN,
+                        14));
+
+        JScrollPane scroll = new JScrollPane(pantalla);
+
+        scroll.setBorder(
+                BorderFactory.createLineBorder(
+                        new Color(45, 55, 65)));
+
+        scroll.setMinimumSize(
+                new Dimension(160, 120));
+
+        scroll.setPreferredSize(
+                new Dimension(400, 200));
+
+        panel.add(
+                scroll,
+                BorderLayout.CENTER);
+
+        /*
+         * Entrada de teclado deshabilitada temporalmente para el Proyecto 2.
+         * Se conserva este código comentado para restaurarlo si se necesita.
+         *
+        JPanel teclado = new JPanel(new BorderLayout(8, 6));
+
+        teclado.setOpaque(false);
+
+        teclado.setBorder(
+                new EmptyBorder(8, 0, 0, 0));
+
+        JLabel etiqueta = new JLabel(
+                "Teclado · valor de 0 a 255");
+
+        etiqueta.setFont(
+                etiqueta.getFont().deriveFont(
+                        Font.BOLD));
+
+        entrada.setToolTipText(
+                "Valor entero entre 0 y 255");
+
+        aplicarBotonPrincipal(enviar);
+
+        teclado.add(
+                etiqueta,
+                BorderLayout.NORTH);
+
+        teclado.add(
+                entrada,
+                BorderLayout.CENTER);
+
+        teclado.add(
+                enviar,
+                BorderLayout.EAST);
+         */
+
+        estadoMonitor.setForeground(
+                TEXTO_SECUNDARIO);
+
+        estadoMonitor.setBorder(
+                new EmptyBorder(0, 0, 8, 0));
+
+        panel.add(
+                estadoMonitor,
+                BorderLayout.NORTH);
+
+        /*
+        panel.add(
+                teclado,
+                BorderLayout.SOUTH);
+        */
+
+        return panel;
+    }
+
+    // =========================================================
+    // RECURSOS
+    // =========================================================
+
+    private JTabbedPane crearPanelRecursos() {
+
+        JTabbedPane pestanas = new JTabbedPane();
+
+        pestanas.addTab(
+                "RAM",
+                crearPanelTabla(
+                        tablaRam,
+                        "Memoria principal"));
+
+        pestanas.addTab(
+                "Disco",
+                crearPanelTabla(
+                        tablaAlmacenamiento,
+                        "Almacenamiento secundario"));
+
+        pestanas.addTab(
+                "Archivos",
+                crearPanelTabla(
+                        tablaArchivos,
+                        "Archivos simulados"));
+
+        JPanel panelEstadisticas = panelSeccion(
+                "Estadísticas de procesos");
+
+        estadisticas.setLineWrap(true);
+        estadisticas.setWrapStyleWord(true);
+
+        estadisticas.setBorder(
+                new EmptyBorder(12, 12, 12, 12));
+
+        panelEstadisticas.add(
+                new JScrollPane(estadisticas),
+                BorderLayout.CENTER);
+
+        pestanas.addTab(
+                "Estadísticas",
+                panelEstadisticas);
+
+        return pestanas;
+    }
+
+    private JPanel crearPanelTabla(
+            JTable tabla,
+            String titulo) {
+
+        JPanel panel = new JPanel(new BorderLayout());
+
+        panel.setBackground(PANEL);
+
+        panel.setBorder(
+                tituloInterno(titulo));
+
+        panel.add(
+                new JScrollPane(tabla),
+                BorderLayout.CENTER);
+
+        return panel;
+    }
+
+    // =========================================================
+    // ESTILOS
+    // =========================================================
+
+    private JPanel panelSeccion(String titulo) {
+
+        JPanel panel = new JPanel(new BorderLayout(6, 6));
+
+        panel.setBackground(PANEL);
+
+        panel.setBorder(
+                BorderFactory.createCompoundBorder(
+                        BorderFactory.createLineBorder(BORDE),
+                        BorderFactory.createCompoundBorder(
+                                BorderFactory.createTitledBorder(
+                                        BorderFactory.createEmptyBorder(),
+                                        titulo,
+                                        TitledBorder.LEFT,
+                                        TitledBorder.TOP,
+                                        fuenteInterfaz(Font.BOLD, 13f),
+                                        TEXTO),
+                                new EmptyBorder(8, 8, 8, 8))));
+
+        return panel;
+    }
+
+    private TitledBorder tituloInterno(
+            String titulo) {
+
+        return BorderFactory.createTitledBorder(
+                BorderFactory.createLineBorder(BORDE),
+                titulo,
+                TitledBorder.LEFT,
+                TitledBorder.TOP,
+                fuenteInterfaz(Font.BOLD, 12f),
+                TEXTO_SECUNDARIO);
+    }
+
+    private Font fuenteInterfaz(
+            int estilo,
+            float tamaño) {
+
+        Font fuente = UIManager.getFont("Label.font");
+
+        if (fuente == null) {
+
+            fuente = new Font(
+                    Font.SANS_SERIF,
+                    Font.PLAIN,
+                    12);
         }
 
-        /** Obtiene el color estable de una CPU configurada. */
-        private static Color colorCPU(int numero) {
-                return numero >= 1 && numero <= COLORES_CPU.length
-                                ? COLORES_CPU[numero - 1]
-                                : TEXTO_SECUNDARIO;
+        return fuente.deriveFont(
+                estilo,
+                tamaño);
+    }
+
+    private void configurarSplit(
+            JSplitPane split,
+            double peso,
+            int posicion) {
+
+        split.setBorder(null);
+
+        split.setContinuousLayout(true);
+
+        split.setResizeWeight(peso);
+
+        split.setDividerLocation(posicion);
+
+        split.setDividerSize(7);
+    }
+
+    private void configurarBotones() {
+
+        conservar.setFocusPainted(false);
+
+        entrada.setFont(
+                new Font(
+                        Font.MONOSPACED,
+                        Font.PLAIN,
+                        13));
+
+        pantalla.setEditable(false);
+    }
+
+    private void aplicarBotonPrincipal(
+            JButton boton) {
+
+        aplicarEstiloBoton(
+                boton,
+                AZUL,
+                Color.WHITE);
+    }
+
+    private void aplicarBotonExito(
+            JButton boton) {
+
+        aplicarEstiloBoton(
+                boton,
+                VERDE,
+                Color.WHITE);
+    }
+
+    private void aplicarBotonAdvertencia(
+            JButton boton) {
+
+        aplicarEstiloBoton(
+                boton,
+                NARANJA,
+                Color.WHITE);
+    }
+
+    private void aplicarBotonPeligro(
+            JButton boton) {
+
+        aplicarEstiloBoton(
+                boton,
+                ROJO,
+                Color.WHITE);
+    }
+
+    private void aplicarBotonSecundario(
+            JButton boton) {
+
+        aplicarEstiloBoton(
+                boton,
+                new Color(89, 101, 114),
+                Color.WHITE);
+    }
+
+    private void aplicarEstiloBoton(
+            JButton boton,
+            Color fondo,
+            Color texto) {
+
+        boton.setFocusPainted(false);
+        boton.setBackground(fondo);
+        boton.setForeground(texto);
+        boton.setOpaque(true);
+
+        boton.setBorder(
+                BorderFactory.createCompoundBorder(
+                        BorderFactory.createLineBorder(
+                                fondo.darker()),
+                        new EmptyBorder(6, 10, 6, 10)));
+    }
+
+    private static JLabel valorRegistro(
+            String texto) {
+
+        JLabel label = new JLabel(texto);
+
+        label.setHorizontalAlignment(
+                SwingConstants.LEFT);
+
+        return label;
+    }
+
+    private static JTextArea texto() {
+
+        JTextArea area = new JTextArea();
+
+        area.setEditable(false);
+
+        area.setFont(
+                new Font(
+                        Font.MONOSPACED,
+                        Font.PLAIN,
+                        13));
+
+        return area;
+    }
+
+    private static DefaultTableModel modelo(
+            String... columnas) {
+
+        return new DefaultTableModel(
+                columnas, 0) {
+
+            @Override
+            public boolean isCellEditable(
+                    int fila,
+                    int columna) {
+
+                return false;
+            }
+        };
+    }
+
+    /**
+     * Prepara las 80 primeras columnas de tiempo y permite extender
+     * el cronograma si la simulación supera los 80 segundos.
+     */
+    private void configurarCronograma() {
+
+        tablaCronograma.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        tablaCronograma.setFillsViewportHeight(true);
+        tablaCronograma.setRowHeight(27);
+        tablaCronograma.setGridColor(BORDE);
+        tablaCronograma.setIntercellSpacing(new Dimension(1, 1));
+        tablaCronograma.setCellSelectionEnabled(true);
+        tablaCronograma.getTableHeader().setReorderingAllowed(false);
+        tablaCronograma.getTableHeader().setFont(fuenteInterfaz(Font.BOLD, 11f));
+        tablaCronograma.getTableHeader().setBackground(new Color(226, 233, 243));
+        tablaCronograma.setDefaultRenderer(Object.class, new RenderizadorCronograma());
+
+        for (int segundo = 1; segundo <= SEGUNDOS_CRONOGRAMA_INICIALES; segundo++) {
+            modeloCronograma.addColumn(Integer.toString(segundo));
         }
 
-        /** Obtiene el fondo tenue de la misma CPU. */
-        private static Color fondoCPU(int numero) {
-                return numero >= 1 && numero <= FONDOS_CPU.length
-                                ? FONDOS_CPU[numero - 1]
-                                : GRIS_SUAVE;
+        tablaCronograma.getColumnModel().getColumn(0).setPreferredWidth(90);
+        tablaCronograma.getColumnModel().getColumn(1).setPreferredWidth(190);
+
+        for (int columna = 2; columna < modeloCronograma.getColumnCount(); columna++) {
+            tablaCronograma.getColumnModel().getColumn(columna).setPreferredWidth(40);
+        }
+    }
+
+    /** Obtiene el color estable de una CPU configurada. */
+    private static Color colorCPU(int numero) {
+        return numero >= 1 && numero <= COLORES_CPU.length
+                ? COLORES_CPU[numero - 1]
+                : TEXTO_SECUNDARIO;
+    }
+
+    /** Obtiene el fondo tenue de la misma CPU. */
+    private static Color fondoCPU(int numero) {
+        return numero >= 1 && numero <= FONDOS_CPU.length
+                ? FONDOS_CPU[numero - 1]
+                : GRIS_SUAVE;
+    }
+
+    private void configurarTablas() {
+
+        JTable[] tablas = {
+                tablaTrabajos,
+                tablaRam,
+                tablaAlmacenamiento,
+                tablaArchivos
+        };
+
+        for (JTable tabla : tablas) {
+
+            tabla.setFillsViewportHeight(true);
+            tabla.setRowHeight(28);
+
+            tabla.setGridColor(
+                    new Color(225, 229, 234));
+
+            tabla.setSelectionBackground(
+                    AZUL_SUAVE);
+
+            tabla.setSelectionForeground(TEXTO);
+
+            tabla.getTableHeader()
+                    .setFont(
+                            tabla.getTableHeader()
+                                    .getFont()
+                                    .deriveFont(Font.BOLD));
+
+            tabla.getTableHeader()
+                    .setBackground(
+                            new Color(228, 233, 239));
+
+            tabla.getTableHeader()
+                    .setForeground(TEXTO);
+
+            tabla.getTableHeader()
+                    .setReorderingAllowed(false);
         }
 
-        private void configurarTablas() {
+        tablaTrabajos.setDefaultRenderer(
+                Object.class,
+                new RenderizadorProcesos());
 
-                JTable[] tablas = {
-                                tablaTrabajos,
-                                tablaRam,
-                                tablaAlmacenamiento,
-                                tablaArchivos
-                };
+        tablaRam.setDefaultRenderer(
+                Object.class,
+                new RenderizadorMemoria());
 
-                for (JTable tabla : tablas) {
+        tablaAlmacenamiento.setDefaultRenderer(
+                Object.class,
+                new RenderizadorAlmacenamiento());
 
-                        tabla.setFillsViewportHeight(true);
-                        tabla.setRowHeight(28);
+        tablaRam.getColumnModel()
+                .getColumn(0).setPreferredWidth(70);
 
-                        tabla.setGridColor(
-                                        new Color(225, 229, 234));
+        tablaRam.getColumnModel()
+                .getColumn(1).setPreferredWidth(90);
 
-                        tabla.setSelectionBackground(
-                                        AZUL_SUAVE);
+        tablaRam.getColumnModel()
+                .getColumn(2).setPreferredWidth(280);
 
-                        tabla.setSelectionForeground(TEXTO);
+        tablaAlmacenamiento.getColumnModel()
+                .getColumn(0).setPreferredWidth(70);
 
-                        tabla.getTableHeader()
-                                        .setFont(
-                                                        tabla.getTableHeader()
-                                                                        .getFont()
-                                                                        .deriveFont(Font.BOLD));
+        tablaAlmacenamiento.getColumnModel()
+                .getColumn(1).setPreferredWidth(90);
 
-                        tabla.getTableHeader()
-                                        .setBackground(
-                                                        new Color(228, 233, 239));
+        tablaAlmacenamiento.getColumnModel()
+                .getColumn(2).setPreferredWidth(280);
+    }
 
-                        tabla.getTableHeader()
-                                        .setForeground(TEXTO);
+    // =========================================================
+    // EVENTOS
+    // =========================================================
 
-                        tabla.getTableHeader()
-                                        .setReorderingAllowed(false);
-                }
+    private void registrarEventos() {
 
-                tablaTrabajos.setDefaultRenderer(
-                                Object.class,
-                                new RenderizadorProcesos());
+        // Cambiar el procesador visible mediante flechas, sin una tabla adicional.
+        cpuAnterior.addActionListener(e -> cambiarCPUVisible(-1));
+        cpuSiguiente.addActionListener(e -> cambiarCPUVisible(1));
 
-                tablaRam.setDefaultRenderer(
-                                Object.class,
-                                new RenderizadorMemoria());
+        // La búsqueda filtra directamente las tarjetas visibles sin alterar los BCP.
+        buscarProcesos.getDocument().addDocumentListener(
+                new javax.swing.event.DocumentListener() {
+                    @Override
+                    public void insertUpdate(javax.swing.event.DocumentEvent e) {
+                        actualizarTarjetasProcesos();
+                    }
 
-                tablaAlmacenamiento.setDefaultRenderer(
-                                Object.class,
-                                new RenderizadorAlmacenamiento());
+                    @Override
+                    public void removeUpdate(javax.swing.event.DocumentEvent e) {
+                        actualizarTarjetasProcesos();
+                    }
 
-                tablaRam.getColumnModel()
-                                .getColumn(0).setPreferredWidth(70);
+                    @Override
+                    public void changedUpdate(javax.swing.event.DocumentEvent e) {
+                        actualizarTarjetasProcesos();
+                    }
+                });
+        mostrarFinalizados.addActionListener(e -> actualizarTarjetasProcesos());
 
-                tablaRam.getColumnModel()
-                                .getColumn(1).setPreferredWidth(90);
+        // Cada columna de la matriz transpuesta corresponde a un PID.
+        tablaTrabajos.getColumnModel().getSelectionModel()
+                .addListSelectionListener(e -> {
 
-                tablaRam.getColumnModel()
-                                .getColumn(2).setPreferredWidth(280);
+                    if (!actualizando
+                            && !e.getValueIsAdjusting()) {
 
-                tablaAlmacenamiento.getColumnModel()
-                                .getColumn(0).setPreferredWidth(70);
+                        int columna = tablaTrabajos.getSelectedColumn();
 
-                tablaAlmacenamiento.getColumnModel()
-                                .getColumn(1).setPreferredWidth(90);
+                        seleccionado = columna <= 0
+                                ? null
+                                : Integer.valueOf(
+                                        trabajos.getValueAt(FILA_PID, columna)
+                                                .toString());
 
-                tablaAlmacenamiento.getColumnModel()
-                                .getColumn(2).setPreferredWidth(280);
-        }
-
-        // =========================================================
-        // EVENTOS
-        // =========================================================
-
-        private void registrarEventos() {
-
-                // Cambiar el procesador visible mediante flechas, sin una tabla adicional.
-                cpuAnterior.addActionListener(e -> cambiarCPUVisible(-1));
-                cpuSiguiente.addActionListener(e -> cambiarCPUVisible(1));
-
-                // La búsqueda filtra directamente las tarjetas visibles sin alterar los BCP.
-                buscarProcesos.getDocument().addDocumentListener(
-                                new javax.swing.event.DocumentListener() {
-                                        @Override
-                                        public void insertUpdate(javax.swing.event.DocumentEvent e) {
-                                                actualizarTarjetasProcesos();
-                                        }
-
-                                        @Override
-                                        public void removeUpdate(javax.swing.event.DocumentEvent e) {
-                                                actualizarTarjetasProcesos();
-                                        }
-
-                                        @Override
-                                        public void changedUpdate(javax.swing.event.DocumentEvent e) {
-                                                actualizarTarjetasProcesos();
-                                        }
-                                });
-                mostrarFinalizados.addActionListener(e -> actualizarTarjetasProcesos());
-
-                // Cada columna de la matriz transpuesta corresponde a un PID.
-                tablaTrabajos.getColumnModel().getSelectionModel()
-                                .addListSelectionListener(e -> {
-
-                                        if (!actualizando
-                                                        && !e.getValueIsAdjusting()) {
-
-                                                int columna = tablaTrabajos.getSelectedColumn();
-
-                                                seleccionado = columna <= 0
-                                                                ? null
-                                                                : Integer.valueOf(
-                                                                                trabajos.getValueAt(FILA_PID, columna)
-                                                                                                .toString());
-
-                                                actualizarDetalle();
-                                        }
-                                });
-
-                // Al hacer clic en una fila del cronograma se muestra su BCP.
-                tablaCronograma.addMouseListener(new java.awt.event.MouseAdapter() {
-                        @Override
-                        public void mouseClicked(java.awt.event.MouseEvent evento) {
-                                int fila = tablaCronograma.rowAtPoint(evento.getPoint());
-                                if (fila < 0 || fila >= pidsCronograma.size()) {
-                                        return;
-                                }
-                                seleccionarProcesoCronograma(pidsCronograma.get(fila));
-                        }
+                        actualizarDetalle();
+                    }
                 });
 
-                cargar.addActionListener(
-                                e -> elegirProgramas());
+        // Al hacer clic en una fila del cronograma se muestra su BCP.
+        tablaCronograma.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent evento) {
+                int fila = tablaCronograma.rowAtPoint(evento.getPoint());
+                if (fila < 0 || fila >= pidsCronograma.size()) {
+                    return;
+                }
+                seleccionarProcesoCronograma(pidsCronograma.get(fila));
+            }
+        });
 
-                disco.addActionListener(
-                                e -> elegirProgramaDisco());
+        cargar.addActionListener(
+                e -> elegirProgramas());
 
-                siguiente.addActionListener(
-                                e -> ejecutarTick());
+        disco.addActionListener(
+                e -> elegirProgramaDisco());
 
-                automatico.addActionListener(e -> {
+        siguiente.addActionListener(
+                e -> ejecutarTick());
 
-                        continuarAutomatico = true;
+        automatico.addActionListener(e -> {
 
-                        reloj.start();
+            continuarAutomatico = true;
 
-                        actualizar();
-                });
+            reloj.start();
 
-                pausa.addActionListener(e -> {
+            actualizar();
+        });
 
-                        detener();
+        pausa.addActionListener(e -> {
 
-                        actualizar();
-                });
+            detener();
 
-                enviar.addActionListener(
-                                e -> entregarEntrada());
+            actualizar();
+        });
 
-                entrada.addActionListener(
-                                e -> entregarEntrada());
+        enviar.addActionListener(
+                e -> entregarEntrada());
+
+        entrada.addActionListener(
+                e -> entregarEntrada());
+    }
+
+    // =========================================================
+    // CONFIGURACION Y CARGA
+    // =========================================================
+
+    public void cargarConfiguracion(
+            Path archivo) throws IOException {
+
+        Configuracion nueva = new ConfigLoader().cargar(archivo);
+
+        Controlador nuevo = new Controlador(nueva);
+
+        detener();
+
+        configuracion = nueva;
+        controlador = nuevo;
+
+        conservar.setSelected(
+                nueva.isConservarArchivosAlReiniciar());
+
+        nombres.clear();
+        seleccionado = null;
+        historialEjecucion.clear();
+        cpuSeleccionada = 1;
+
+        actualizar();
+    }
+
+    public void cargarPrograma(
+            Path archivo) throws IOException {
+
+        BCP proceso = controlador.cargarPrograma(archivo);
+
+        nombres.put(
+                proceso.getPid(),
+                archivo.getFileName().toString());
+
+        seleccionado = proceso.getPid();
+
+        actualizar();
+    }
+
+    private JFileChooser selector(
+            String extension,
+            String descripcion,
+            Path directorio) {
+
+        JFileChooser chooser = new JFileChooser(directorio.toFile());
+
+        chooser.setFileFilter(
+                new FileNameExtensionFilter(
+                        descripcion,
+                        extension));
+
+        return chooser;
+    }
+
+    private void elegirConfiguracion() {
+
+        JFileChooser chooser = new JFileChooser(
+                raiz.resolve("config").toFile());
+
+        chooser.setFileFilter(
+                new FileNameExtensionFilter(
+                        "Configuración Mini PC (*.properties, *.txt)",
+                        "properties",
+                        "txt"));
+
+        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return;
         }
 
-        // =========================================================
-        // CONFIGURACION Y CARGA
-        // =========================================================
+        if (controlador != null
+                && (!controlador.getGestorProcesos()
+                        .getListaTrabajos().isEmpty()
+                        || controlador.getAlmacenamiento()
+                                .getEspacioArchivosOcupado() > 0)
+                && JOptionPane.showConfirmDialog(
+                        this,
+                        "La nueva configuración inicia otra "
+                                + "simulación y borra los archivos "
+                                + "simulados. ¿Continuar?",
+                        "Cambiar configuración",
+                        JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) {
 
-        public void cargarConfiguracion(
-                        Path archivo) throws IOException {
+            return;
+        }
 
-                Configuracion nueva = new ConfigLoader().cargar(archivo);
+        try {
 
-                Controlador nuevo = new Controlador(nueva);
+            cargarConfiguracion(
+                    chooser.getSelectedFile().toPath());
+
+        } catch (IOException | RuntimeException ex) {
+
+            mostrarError(ex);
+        }
+    }
+
+    private void elegirProgramas() {
+
+        JFileChooser chooser = selector(
+                "asm",
+                "Programas ASM",
+                raiz.resolve("codigo"));
+
+        chooser.setMultiSelectionEnabled(true);
+
+        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+
+        for (java.io.File archivo : chooser.getSelectedFiles()) {
+
+            try {
+
+                cargarPrograma(
+                        archivo.toPath());
+
+            } catch (IOException | RuntimeException ex) {
+
+                mostrarError(ex);
+            }
+        }
+    }
+
+    private void elegirProgramaDisco() {
+
+        String nombre = JOptionPane.showInputDialog(
+                this,
+                "Nombre del programa guardado "
+                        + "en el disco simulado:");
+
+        if (nombre == null) {
+            return;
+        }
+
+        try {
+
+            BCP proceso = controlador.cargarProgramaDesdeDisco(
+                    nombre.trim());
+
+            nombres.put(
+                    proceso.getPid(),
+                    nombre.trim());
+
+            seleccionado = proceso.getPid();
+
+            actualizar();
+
+        } catch (RuntimeException ex) {
+
+            mostrarError(ex);
+        }
+    }
+
+    // =========================================================
+    // EJECUCION
+    // =========================================================
+
+    private boolean hayEjecutable() {
+
+        return controlador != null
+                && controlador.puedeAvanzar();
+    }
+
+    private void ejecutarTick() {
+
+        try {
+
+            /*
+             * Guardar los tiempos anteriores. Comparar antes y después
+             * permite identificar qué PID utilizó cada CPU incluso si
+             * una INT 20H finaliza el proceso dentro del mismo tick.
+             */
+            Map<Integer, Integer> tiemposAntes = new HashMap<>();
+
+            for (BCP proceso : controlador.getGestorProcesos().getListaTrabajos()) {
+                tiemposAntes.put(proceso.getPid(), proceso.getTiempoCPU());
+            }
+
+            int instanteAnterior = controlador.getTiempoSimulado();
+
+            controlador.ejecutarSiguiente();
+
+            if (controlador.getTiempoSimulado() > instanteAnterior) {
+                registrarSegundoEjecutado(
+                        controlador.getTiempoSimulado(), tiemposAntes);
+            }
+
+            if (controlador.simulacionFinalizada()) {
 
                 detener();
 
-                configuracion = nueva;
-                controlador = nuevo;
-
-                conservar.setSelected(
-                                nueva.isConservarArchivosAlReiniciar());
-
-                nombres.clear();
-                seleccionado = null;
-                historialEjecucion.clear();
-                cpuSeleccionada = 1;
-
-                actualizar();
-        }
-
-        public void cargarPrograma(
-                        Path archivo) throws IOException {
-
-                BCP proceso = controlador.cargarPrograma(archivo);
-
-                nombres.put(
-                                proceso.getPid(),
-                                archivo.getFileName().toString());
-
-                seleccionado = proceso.getPid();
-
-                actualizar();
-        }
-
-        private JFileChooser selector(
-                        String extension,
-                        String descripcion,
-                        Path directorio) {
-
-                JFileChooser chooser = new JFileChooser(directorio.toFile());
-
-                chooser.setFileFilter(
-                                new FileNameExtensionFilter(
-                                                descripcion,
-                                                extension));
-
-                return chooser;
-        }
-
-        private void elegirConfiguracion() {
-
-                JFileChooser chooser = new JFileChooser(
-                                raiz.resolve("config").toFile());
-
-                chooser.setFileFilter(
-                                new FileNameExtensionFilter(
-                                                "Configuración Mini PC (*.properties, *.txt)",
-                                                "properties",
-                                                "txt"));
-
-                if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
-                        return;
-                }
-
-                if (controlador != null
-                                && (!controlador.getGestorProcesos()
-                                                .getListaTrabajos().isEmpty()
-                                                || controlador.getAlmacenamiento()
-                                                                .getEspacioArchivosOcupado() > 0)
-                                && JOptionPane.showConfirmDialog(
-                                                this,
-                                                "La nueva configuración inicia otra "
-                                                                + "simulación y borra los archivos "
-                                                                + "simulados. ¿Continuar?",
-                                                "Cambiar configuración",
-                                                JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) {
-
-                        return;
-                }
-
-                try {
-
-                        cargarConfiguracion(
-                                        chooser.getSelectedFile().toPath());
-
-                } catch (IOException | RuntimeException ex) {
-
-                        mostrarError(ex);
-                }
-        }
-
-        private void elegirProgramas() {
-
-                JFileChooser chooser = selector(
-                                "asm",
-                                "Programas ASM",
-                                raiz.resolve("codigo"));
-
-                chooser.setMultiSelectionEnabled(true);
-
-                if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
-                        return;
-                }
-
-                for (java.io.File archivo : chooser.getSelectedFiles()) {
-
-                        try {
-
-                                cargarPrograma(
-                                                archivo.toPath());
-
-                        } catch (IOException | RuntimeException ex) {
-
-                                mostrarError(ex);
-                        }
-                }
-        }
-
-        private void elegirProgramaDisco() {
-
-                String nombre = JOptionPane.showInputDialog(
-                                this,
-                                "Nombre del programa guardado "
-                                                + "en el disco simulado:");
-
-                if (nombre == null) {
-                        return;
-                }
-
-                try {
-
-                        BCP proceso = controlador.cargarProgramaDesdeDisco(
-                                        nombre.trim());
-
-                        nombres.put(
-                                        proceso.getPid(),
-                                        nombre.trim());
-
-                        seleccionado = proceso.getPid();
-
-                        actualizar();
-
-                } catch (RuntimeException ex) {
-
-                        mostrarError(ex);
-                }
-        }
-
-        // =========================================================
-        // EJECUCION
-        // =========================================================
-
-        private boolean hayEjecutable() {
-
-                return controlador != null
-                                && controlador.puedeAvanzar();
-        }
-
-        private void ejecutarTick() {
-
-                try {
-
-                        /*
-                         * Guardar los tiempos anteriores. Comparar antes y después
-                         * permite identificar qué PID utilizó cada CPU incluso si
-                         * una INT 20H finaliza el proceso dentro del mismo tick.
-                         */
-                        Map<Integer, Integer> tiemposAntes = new HashMap<>();
-
-                        for (BCP proceso : controlador.getGestorProcesos().getListaTrabajos()) {
-                                tiemposAntes.put(proceso.getPid(), proceso.getTiempoCPU());
-                        }
-
-                        int instanteAnterior = controlador.getTiempoSimulado();
-
-                        controlador.ejecutarSiguiente();
-
-                        if (controlador.getTiempoSimulado() > instanteAnterior) {
-                                registrarSegundoEjecutado(
-                                                controlador.getTiempoSimulado(), tiemposAntes);
-                        }
-
-                        if (controlador.simulacionFinalizada()) {
-
-                                detener();
-
-                        } else if (!hayEjecutable()) {
-
-                                reloj.stop();
-                        }
-
-                        actualizar();
-
-                } catch (RuntimeException ex) {
-
-                        detener();
-                        actualizar();
-                        mostrarError(ex);
-                }
-        }
-
-        private void entregarEntrada() {
-
-                try {
-
-                        controlador.recibirEntradaTeclado(
-                                        entrada.getText());
-
-                        entrada.setText("");
-
-                        if (continuarAutomatico) {
-                                reloj.start();
-                        }
-
-                        actualizar();
-
-                } catch (RuntimeException ex) {
-
-                        mostrarError(ex);
-                }
-        }
-
-        private void detener() {
+            } else if (!hayEjecutable()) {
 
                 reloj.stop();
+            }
 
-                continuarAutomatico = false;
+            actualizar();
+
+        } catch (RuntimeException ex) {
+
+            detener();
+            actualizar();
+            mostrarError(ex);
+        }
+    }
+
+    private void entregarEntrada() {
+
+        try {
+
+            controlador.recibirEntradaTeclado(
+                    entrada.getText());
+
+            entrada.setText("");
+
+            if (continuarAutomatico) {
+                reloj.start();
+            }
+
+            actualizar();
+
+        } catch (RuntimeException ex) {
+
+            mostrarError(ex);
+        }
+    }
+
+    private void detener() {
+
+        reloj.stop();
+
+        continuarAutomatico = false;
+    }
+
+    private void mostrarError(Exception ex) {
+
+        JOptionPane.showMessageDialog(
+                this,
+                ex.getMessage(),
+                "Mini PC",
+                JOptionPane.ERROR_MESSAGE);
+    }
+
+    private String hora(LocalDateTime valor) {
+
+        return valor == null
+                ? "-"
+                : valor.format(
+                        DateTimeFormatter.ofPattern("HH:mm"));
+    }
+
+    // =========================================================
+    // ACTUALIZACION GENERAL
+    // =========================================================
+
+    private void actualizar() {
+
+        boolean listo = controlador != null;
+
+        // Sincronizar controles.
+        ajustandoControles = true;
+
+        try {
+
+            if (listo) {
+
+                cantidadCPU.setValue(
+                        controlador.getCantidadCPU());
+
+                TipoAlgoritmo tipo = controlador.getAlgoritmoSeleccionado();
+
+                algoritmos.setSelectedItem(tipo);
+            }
+
+        } finally {
+
+            ajustandoControles = false;
         }
 
-        private void mostrarError(Exception ex) {
+        boolean configurables = listo
+                && controlador.getTiempoSimulado() == 0
+                && !continuarAutomatico;
 
-                JOptionPane.showMessageDialog(
-                                this,
-                                ex.getMessage(),
-                                "Mini PC",
-                                JOptionPane.ERROR_MESSAGE);
+        cantidadCPU.setEnabled(configurables);
+        algoritmos.setEnabled(configurables);
+        quantumRR.setEnabled(configurables);
+
+        valorReloj.setText(
+                listo
+                        ? "RELOJ  " + controlador.getTiempoSimulado() + " s"
+                        : "RELOJ  0 s");
+
+        algoritmoSuperior.setText(
+                "Algoritmo: " + (!listo || controlador.getAlgoritmoSeleccionado() == null
+                        ? "sin seleccionar"
+                        : controlador.getAlgoritmoSeleccionado().name()
+                                + (controlador.getAlgoritmoSeleccionado() == TipoAlgoritmo.RR
+                                        ? " · quantum " + controlador.getQuantumRR() + " s"
+                                        : "")));
+
+        valorNucleos.setText(
+                listo
+                        ? controlador.getCantidadCPU() + " / 5"
+                        : "1 / 5");
+
+        if (!listo) {
+
+            estadoSimulacion.setText(
+                    "Carga una configuración");
+
+        } else if (continuarAutomatico) {
+
+            estadoSimulacion.setText(
+                    "En ejecución");
+
+        } else if (controlador.getTiempoSimulado() == 0) {
+
+            estadoSimulacion.setText(
+                    controlador.getAlgoritmoSeleccionado() == null
+                            ? "Selecciona un algoritmo"
+                            : "Listo para iniciar");
+
+        } else if (controlador.simulacionFinalizada()) {
+
+            estadoSimulacion.setText(
+                    "Simulación finalizada");
+
+        } else {
+
+            estadoSimulacion.setText(
+                    "Pausado en t="
+                            + controlador.getTiempoSimulado()
+                            + " s");
         }
 
-        private String hora(LocalDateTime valor) {
+        // Botones.
+        cargar.setEnabled(listo);
+        disco.setEnabled(listo);
+        pausa.setEnabled(continuarAutomatico);
 
-                return valor == null
-                                ? "-"
-                                : valor.format(
-                                                DateTimeFormatter.ofPattern("HH:mm"));
+        boolean ejecutable = listo && hayEjecutable();
+
+        siguiente.setEnabled(
+                ejecutable && !continuarAutomatico);
+
+        automatico.setEnabled(
+                ejecutable && !continuarAutomatico);
+
+        // Detectar espera de teclado en cualquier CPU.
+        boolean espera = false;
+
+        if (listo) {
+
+            for (ContextoNucleo nucleo : controlador.getNucleos()) {
+
+                if (nucleo.getInterrupciones()
+                        .hayProcesoEsperandoTeclado()) {
+
+                    espera = true;
+                    break;
+                }
+            }
         }
 
-        // =========================================================
-        // ACTUALIZACION GENERAL
-        // =========================================================
+        enviar.setEnabled(espera);
+        entrada.setEnabled(espera);
 
-        private void actualizar() {
+        if (!listo) {
 
-                boolean listo = controlador != null;
+            valorRAM.setText("-");
+            valorKernel.setText("-");
+            valorProgramasEnRAM.setText("-");
+            valorDisco.setText("-");
 
-                // Sincronizar controles.
-                ajustandoControles = true;
+            procesoCPU.setText("Sin CPU configurada");
 
+            actualizarCronograma();
+            actualizarTarjetasProcesos();
+            actualizarDetalle();
+
+            return;
+        }
+
+        // =====================================================
+        // RESUMEN DE MEMORIA
+        // =====================================================
+
+        int procesosEnRAM = controlador.getGestorProcesos()
+                .getProcesosEnRAM().size();
+
+        int memoriaTotal = configuracion.getTamañoMemoria();
+
+        int kernel = configuracion.getInicioUsuario();
+
+        int usuarioTotal = memoriaTotal - kernel;
+
+        int usuarioOcupado = 0;
+
+        for (int i = controlador.getInicioUsuario(); i < controlador.getSizeMemoria(); i++) {
+
+            if (controlador.getMemoria().leer(i) != null) {
+
+                usuarioOcupado++;
+            }
+        }
+
+        int discoOcupado = controlador.getAlmacenamiento()
+                .getEspacioArchivosOcupado();
+
+        int discoTotal = controlador.getAlmacenamiento()
+                .getTamañoArchivos();
+
+        valorRAM.setText(
+                usuarioOcupado + " / " + usuarioTotal);
+
+        valorKernel.setText(
+                kernel + " posiciones");
+
+        valorProgramasEnRAM.setText(
+                procesosEnRAM
+                        + " / "
+                        + configuracion.getMaxProcesosEnRam());
+
+        valorDisco.setText(
+                discoOcupado + " / " + discoTotal);
+
+        barraRAM.setMaximum(
+                Math.max(usuarioTotal, 1));
+
+        barraRAM.setValue(usuarioOcupado);
+
+        barraRAM.setString(
+                usuarioTotal == 0
+                        ? "0%"
+                        : (usuarioOcupado * 100 / usuarioTotal)
+                                + "%");
+
+        barraDisco.setMaximum(
+                Math.max(discoTotal, 1));
+
+        barraDisco.setValue(
+                Math.min(discoOcupado, discoTotal));
+
+        barraDisco.setString(
+                discoTotal == 0
+                        ? "0%"
+                        : (discoOcupado * 100 / discoTotal)
+                                + "%");
+
+        // =====================================================
+        // ACTUALIZAR CPU SELECCIONADA
+        // =====================================================
+
+        actualizarCPUSeleccionada();
+
+        // =====================================================
+        // TABLA DE PROCESOS
+        // =====================================================
+
+        actualizando = true;
+
+        trabajos.setRowCount(0);
+        trabajos.setColumnCount(1);
+
+        // Filas = atributos, columnas = procesos (matriz transpuesta).
+        for (String campo : CAMPOS_PROCESO) {
+            trabajos.addRow(new Object[] { campo });
+        }
+
+        StringBuilder resumenEstadisticas = new StringBuilder();
+
+        for (BCP p : controlador.getGestorProcesos()
+                .getListaTrabajos()) {
+
+            String ubicacion = p.getEstado() == EstadoProceso.FINALIZADO
+                    ? "Liberada"
+                    : controlador.getGestorMemoriaVirtual()
+                            .estaEnMemoriaVirtual(p)
+                                    ? "Virtual @"
+                                            + controlador
+                                                    .getGestorMemoriaVirtual()
+                                                    .getDireccionVirtual(p)
+                                    : "RAM";
+
+            trabajos.addColumn("PID " + p.getPid(), new String[] {
+                    Integer.toString(p.getPid()),
+                    p.getCpuAsignada() < 1
+                            ? "Sin CPU"
+                            : "CPU " + p.getCpuAsignada(),
+                    nombres.getOrDefault(p.getPid(), ""),
+                    p.getEstado().toString(),
+                    ubicacion,
+                    Integer.toString(p.getInicioPrograma()),
+                    Integer.toString(p.getTamañoPrograma()),
+                    Integer.toString(p.getTiempoCPU()),
+                    Integer.toString(p.getRafaga()),
+                    Integer.toString(p.getTiempoLlegada()),
+                    Integer.toString(p.getTiempoRestante())
+            });
+
+            resumenEstadisticas
+                    .append("PROCESO PID ")
+                    .append(p.getPid())
+                    .append(" · ")
+                    .append(nombres.getOrDefault(
+                            p.getPid(), ""))
+                    .append(" · CPU ")
+                    .append(p.getCpuAsignada() < 1
+                            ? "sin asignar"
+                            : Integer.toString(p.getCpuAsignada()))
+                    .append("\n────────────────────────────\n")
+                    .append("Estado: ")
+                    .append(p.getEstado())
+                    .append("\nResultado: ")
+                    .append(
+                            !p.getMotivoError().isEmpty()
+                                    ? "Error: "
+                                            + p.getMotivoError()
+                                    : p.getHoraFinal() == null
+                                            ? "Pendiente"
+                                            : "Finalización normal")
+                    .append("\nInicio: ")
+                    .append(hora(p.getHoraInicio()))
+                    .append("\nFin: ")
+                    .append(hora(p.getHoraFinal()))
+                    .append("\nDuración real: ")
+                    .append(
+                            p.getHoraFinal() == null
+                                    ? "Pendiente"
+                                    : String.format(
+                                            java.util.Locale.ROOT,
+                                            "%.3f s",
+                                            p.getTiempoTotalSegundos()))
+                    .append("\nTiempo CPU: ")
+                    .append(p.getTiempoCPU())
+                    .append(" s")
+                    .append("\n\nContexto ")
+                    .append(
+                            p.getHoraFinal() == null
+                                    ? "actual"
+                                    : "final")
+                    .append("\nPC: ")
+                    .append(p.getPC())
+                    .append("\nIR: ")
+                    .append(p.getIR())
+                    .append("\nAC: ")
+                    .append(p.getAC())
+                    .append("\nAX: ")
+                    .append(p.getAX())
+                    .append("\nBX: ")
+                    .append(p.getBX())
+                    .append("\nCX: ")
+                    .append(p.getCX())
+                    .append("\nDX: ")
+                    .append(p.getDX())
+                    .append("\nAH: ")
+                    .append(p.getAH())
+                    .append("\nAL: ")
+                    .append(p.getAL())
+                    .append("\nZF: ")
+                    .append(p.isZeroFlag())
+                    .append("\nPila: ")
+                    .append(p.getPila())
+                    .append("\n\n\n");
+
+        }
+
+        // Restaurar tamaños y selección después de recrear las columnas.
+        tablaTrabajos.getColumnModel().getColumn(0).setPreferredWidth(150);
+
+        for (int columna = 1; columna < trabajos.getColumnCount(); columna++) {
+            tablaTrabajos.getColumnModel().getColumn(columna).setPreferredWidth(150);
+
+            if (seleccionado != null
+                    && Integer.toString(seleccionado)
+                            .equals(trabajos.getValueAt(FILA_PID, columna).toString())) {
+
+                tablaTrabajos.setColumnSelectionInterval(columna, columna);
+            }
+        }
+
+        actualizando = false;
+
+        actualizarCronograma();
+        actualizarTarjetasProcesos();
+
+        String contenidoEstadisticas = resumenEstadisticas.length() == 0
+                ? "Todavía no hay procesos cargados."
+                : resumenEstadisticas.toString();
+
+        if (!estadisticas.getText()
+                .equals(contenidoEstadisticas)) {
+
+            int posicion = estadisticas.getCaretPosition();
+
+            estadisticas.setText(
+                    contenidoEstadisticas);
+
+            estadisticas.setCaretPosition(
+                    Math.min(
+                            posicion,
+                            estadisticas.getDocument()
+                                    .getLength()));
+        }
+
+        // =====================================================
+        // RAM
+        // =====================================================
+
+        ram.setRowCount(0);
+
+        for (int i = 0; i < controlador.getSizeMemoria(); i++) {
+
+            String contenido = i < controlador.getInicioUsuario()
+                    ? controlador.getMemoria()
+                            .obtenerContenido(i)
+                    : controlador.getMemoria()
+                            .leer(i) == null
+                                    ? ""
+                                    : controlador.getMemoria()
+                                            .leer(i)
+                                            .getTextoOriginal();
+
+            ram.addRow(new String[] {
+                    Integer.toString(i),
+                    i < controlador.getInicioUsuario()
+                            ? "Kernel"
+                            : "Usuario",
+                    contenido
+            });
+        }
+
+        // =====================================================
+        // DISCO
+        // =====================================================
+
+        Almacenamiento a = controlador.getAlmacenamiento();
+
+        almacenamiento.setRowCount(0);
+
+        for (int i = 0; i < a.getSize(); i++) {
+
+            almacenamiento.addRow(new String[] {
+                    Integer.toString(i),
+                    i < a.getTamañoIndice()
+                            ? "Índice"
+                            : i < a.getInicioMemoriaVirtual()
+                                    ? "Archivos"
+                                    : "Virtual",
+                    a.obtenerContenido(i)
+            });
+        }
+
+        // =====================================================
+        // ARCHIVOS
+        // =====================================================
+
+        archivos.setRowCount(0);
+
+        for (ArchivoSimulado f : a.listarArchivos()) {
+
+            archivos.addRow(new String[] {
+                    f.getNombre(),
+                    Integer.toString(
+                            f.getDireccionInicio()),
+                    Integer.toString(
+                            f.getTamaño()),
+                    Integer.toString(
+                            f.getEspacioOcupado()),
+                    f.esPrograma()
+                            ? "Programa ASM"
+                            : "Texto"
+            });
+        }
+
+        // =====================================================
+        // CONSOLA DE TODAS LAS CPU
+        // =====================================================
+
+        java.util.List<String> salidas = new java.util.ArrayList<>();
+
+        for (ContextoNucleo nucleo : controlador.getNucleos()) {
+
+            for (String mensaje : nucleo.getInterrupciones()
+                    .getSalidas()) {
+
+                salidas.add(
+                        "[CPU "
+                                + nucleo.getCpu().getId()
+                                + "] "
+                                + mensaje);
+            }
+        }
+
+        java.util.List<String> errores = controlador.getErroresEjecucion();
+
+        String contenidoMonitor = String.join("\n", salidas);
+
+        if (!errores.isEmpty()) {
+
+            contenidoMonitor += (contenidoMonitor.isEmpty()
+                    ? ""
+                    : "\n\n")
+                    + "Errores de ejecución:\n"
+                    + String.join("\n", errores);
+        }
+
+        if (!pantalla.getText()
+                .equals(contenidoMonitor)) {
+
+            pantalla.setText(
+                    contenidoMonitor);
+
+            pantalla.setCaretPosition(
+                    pantalla.getDocument()
+                            .getLength());
+        }
+
+        estadoMonitor.setText(
+                espera
+                        ? "Hay una solicitud de entrada pendiente."
+                        : "Salida de programas · "
+                                + salidas.size()
+                                + " mensajes");
+
+        actualizarDetalle();
+    }
+
+    // =========================================================
+    // HISTORIAL DE EJECUCIÓN Y CRONOGRAMA
+    // =========================================================
+
+    /**
+     * Registra qué proceso consumió cada segundo de cada CPU.
+     *
+     * Se compara el tiempo CPU de los BCP para incluir las instrucciones
+     * de finalización, aunque el proceso ya no esté en EJECUCION.
+     *
+     * @param segundo segundo que acaba de ejecutarse (comienza en 1)
+     * @param tiemposAntes tiempo CPU por PID antes del tick
+     */
+    private void registrarSegundoEjecutado(
+            int segundo,
+            Map<Integer, Integer> tiemposAntes) {
+
+        Map<Integer, Integer> ejecutados = new HashMap<>();
+
+        for (BCP proceso : controlador.getGestorProcesos().getListaTrabajos()) {
+
+            int tiempoAnterior = tiemposAntes.getOrDefault(proceso.getPid(), 0);
+
+            if (proceso.getTiempoCPU() > tiempoAnterior
+                    && proceso.getCpuAsignada() >= 1) {
+
+                ejecutados.put(proceso.getCpuAsignada(), proceso.getPid());
+            }
+        }
+
+        // Puede quedar vacío si todas las CPU estuvieron ociosas.
+        historialEjecucion.put(segundo, ejecutados);
+    }
+
+    /**
+     * Actualiza la tabla temporal sin modificar el estado del simulador.
+     * Presenta una fila por proceso agrupada según su CPU asignada.
+     */
+    private void actualizarCronograma() {
+
+        int tiempo = controlador == null ? 0 : controlador.getTiempoSimulado();
+
+        // Extender las columnas al superar los primeros 80 segundos.
+        if (tiempo + 2 > modeloCronograma.getColumnCount()) {
+
+            while (modeloCronograma.getColumnCount() < tiempo + 2) {
+                int segundoNuevo = modeloCronograma.getColumnCount() - 1;
+                modeloCronograma.addColumn(Integer.toString(segundoNuevo));
+            }
+
+            tablaCronograma.getColumnModel().getColumn(0).setPreferredWidth(90);
+            tablaCronograma.getColumnModel().getColumn(1).setPreferredWidth(190);
+
+            for (int columna = 2; columna < modeloCronograma.getColumnCount(); columna++) {
+                tablaCronograma.getColumnModel().getColumn(columna).setPreferredWidth(40);
+            }
+        }
+
+        modeloCronograma.setRowCount(0);
+        pidsCronograma.clear();
+
+        if (controlador == null) {
+            resumenCronograma.setText("0 s registrados");
+            return;
+        }
+
+        List<BCP> procesos = new ArrayList<>(
+                controlador.getGestorProcesos().getListaTrabajos());
+
+        // Mantener juntas las filas que pertenecen a una misma CPU.
+        procesos.sort((primero, segundo) -> {
+            int comparacion = Integer.compare(
+                    primero.getCpuAsignada(), segundo.getCpuAsignada());
+            return comparacion != 0
+                    ? comparacion
+                    : Integer.compare(primero.getPid(), segundo.getPid());
+        });
+
+        for (BCP proceso : procesos) {
+
+            int cpuId = proceso.getCpuAsignada();
+            if (cpuId < 1) {
+                continue;
+            }
+
+            Object[] fila = new Object[modeloCronograma.getColumnCount()];
+            fila[0] = "CPU " + cpuId;
+            fila[1] = "PID " + proceso.getPid() + " · "
+                    + nombres.getOrDefault(proceso.getPid(), "Proceso");
+
+            for (int segundo = 1; segundo <= tiempo; segundo++) {
+
+                Map<Integer, Integer> porCPU = historialEjecucion.get(segundo);
+
+                if (porCPU != null
+                        && Integer.valueOf(proceso.getPid()).equals(porCPU.get(cpuId))) {
+                    fila[segundo + 1] = "■";
+                }
+            }
+
+            modeloCronograma.addRow(fila);
+            pidsCronograma.add(proceso.getPid());
+        }
+
+        int segundosOcupados = 0;
+        for (Map<Integer, Integer> segundo : historialEjecucion.values()) {
+            segundosOcupados += segundo.size();
+        }
+
+        resumenCronograma.setText(
+                tiempo + " s · " + segundosOcupados + " s de CPU acumulados");
+
+        // Mantener visible el segundo reciente durante la ejecución.
+        if (tiempo > 0 && seguirCronograma.isSelected()) {
+            desplazarCronograma(tiempo);
+        }
+    }
+
+    /** Desplaza horizontalmente la línea de tiempo a un segundo. */
+    private void desplazarCronograma(int segundo) {
+
+        if (tablaCronograma.getRowCount() == 0) {
+            return;
+        }
+
+        int columna = Math.min(
+                Math.max(2, segundo + 1),
+                tablaCronograma.getColumnCount() - 1);
+
+        tablaCronograma.scrollRectToVisible(
+                tablaCronograma.getCellRect(0, columna, true));
+    }
+
+    /** Abre el BCP correspondiente al proceso elegido en el cronograma. */
+    private void seleccionarProcesoCronograma(int pid) {
+
+        seleccionado = pid;
+
+        for (int columna = 1; columna < trabajos.getColumnCount(); columna++) {
+            if (Integer.toString(pid).equals(
+                    trabajos.getValueAt(FILA_PID, columna).toString())) {
+                tablaTrabajos.setColumnSelectionInterval(columna, columna);
+                tablaTrabajos.scrollRectToVisible(
+                        tablaTrabajos.getCellRect(FILA_PID, columna, true));
+                break;
+            }
+        }
+
+        BCP proceso = controlador.getGestorProcesos().buscarProceso(pid);
+        if (proceso != null && proceso.getCpuAsignada() >= 1
+                && proceso.getCpuAsignada() <= controlador.getCantidadCPU()) {
+            cpuSeleccionada = proceso.getCpuAsignada();
+            actualizarCPUSeleccionada();
+        }
+
+        actualizarDetalle();
+        actualizarTarjetasProcesos();
+    }
+
+    // =========================================================
+    // NAVEGACIÓN ENTRE LAS CPU
+    // =========================================================
+
+    /**
+     * Avanza o retrocede de forma circular entre las CPU configuradas.
+     * Cada flecha cambia únicamente la CPU mostrada en la interfaz.
+     */
+    private void cambiarCPUVisible(int desplazamiento) {
+
+        if (controlador == null || controlador.getCantidadCPU() == 0) {
+            return;
+        }
+
+        int cantidad = controlador.getCantidadCPU();
+        cpuSeleccionada = Math.floorMod(
+                cpuSeleccionada - 1 + desplazamiento, cantidad) + 1;
+
+        actualizarCPUSeleccionada();
+    }
+
+    // =========================================================
+    // REGISTROS DE CPU SELECCIONADA
+    // =========================================================
+
+    private void actualizarCPUSeleccionada() {
+
+        if (controlador == null
+                || controlador.getCantidadCPU() < 1) {
+            return;
+        }
+
+        cpuSeleccionada = Math.max(1,
+                Math.min(cpuSeleccionada, controlador.getCantidadCPU()));
+
+        int numero = cpuSeleccionada;
+
+        cpuAnterior.setEnabled(controlador.getCantidadCPU() > 1);
+        cpuSiguiente.setEnabled(controlador.getCantidadCPU() > 1);
+
+        CPU cpuSeleccionada = controlador.getCPU(numero);
+
+        BCP proceso = controlador.getProcesoActual(numero);
+
+        procesoCPU.setText(
+                proceso == null
+                        ? "CPU " + numero + " de " + controlador.getCantidadCPU() + " · Libre"
+                        : "CPU " + numero + " de " + controlador.getCantidadCPU()
+                                + " · Ejecutando PID "
+                                + proceso.getPid());
+
+        procesoCPU.setForeground(
+                proceso == null
+                        ? TEXTO_SECUNDARIO
+                        : colorCPU(numero));
+
+        valorPC.setText(
+                String.valueOf(
+                        cpuSeleccionada.getPC()));
+
+        String ir = proceso == null || cpuSeleccionada.getIR() == null
+                ? "—"
+                : cpuSeleccionada.getIR();
+
+        valorIR.setText(
+                ir.length() > 18
+                        ? ir.substring(0, 18) + "..."
+                        : ir);
+
+        valorIR.setToolTipText(ir);
+
+        valorAC.setText(
+                String.valueOf(
+                        cpuSeleccionada.getAC()));
+
+        valorAX.setText(
+                String.valueOf(
+                        cpuSeleccionada.getRegistros().getAX()));
+
+        valorBX.setText(
+                String.valueOf(
+                        cpuSeleccionada.getRegistros().getBX()));
+
+        valorCX.setText(
+                String.valueOf(
+                        cpuSeleccionada.getRegistros().getCX()));
+
+        valorDX.setText(
+                String.valueOf(
+                        cpuSeleccionada.getRegistros().getDX()));
+
+        valorAH.setText(
+                String.valueOf(
+                        cpuSeleccionada.getRegistros().getAH()));
+
+        valorAL.setText(
+                String.valueOf(
+                        cpuSeleccionada.getRegistros().getAL()));
+
+        valorZF.setText(
+                String.valueOf(
+                        cpuSeleccionada.isZeroFlag()));
+
+        tiempoOcupadoCPU.setText(cpuSeleccionada.getTiempoOcupado() + " s");
+        tiempoOciosoCPU.setText(cpuSeleccionada.getTiempoOcioso() + " s");
+    }
+
+    // =========================================================
+    // DETALLE DEL BCP
+    // =========================================================
+
+    private void actualizarDetalle() {
+
+        BCP p = seleccionado == null
+                || controlador == null
+                        ? null
+                        : controlador.getGestorProcesos()
+                                .buscarProceso(seleccionado);
+
+        // Mantener la pestaña elegida mientras el reloj actualiza los datos.
+        int pestañaActiva = pestañasBCP.getSelectedIndex();
+        pestañasBCP.removeAll();
+
+        if (p == null) {
+            JLabel ayuda = new JLabel(
+                    "<html>Selecciona <b>Ver BCP</b> en una tarjeta "
+                            + "para consultar el proceso.</html>");
+            ayuda.setForeground(TEXTO_SECUNDARIO);
+            ayuda.setBorder(new EmptyBorder(10, 8, 10, 8));
+            pestañasBCP.addTab("General", ayuda);
+
+        } else {
+
+            JPanel informacion = new JPanel();
+            informacion.setLayout(new BoxLayout(informacion, BoxLayout.Y_AXIS));
+            informacion.setOpaque(false);
+
+            // Encabezado con PID, nombre y color de CPU.
+            JPanel cabecera = new JPanel(new BorderLayout(7, 4));
+            cabecera.setOpaque(false);
+            cabecera.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+            JLabel titulo = new JLabel("PID " + p.getPid() + " · "
+                    + nombres.getOrDefault(p.getPid(), "Proceso"));
+            titulo.setFont(fuenteInterfaz(Font.BOLD, 14f));
+            titulo.setForeground(TEXTO);
+            titulo.setToolTipText(titulo.getText());
+
+            JLabel insignia = new JLabel(p.getCpuAsignada() < 1
+                    ? "SIN CPU" : "CPU " + p.getCpuAsignada());
+            insignia.setOpaque(true);
+            insignia.setBackground(colorCPU(p.getCpuAsignada()));
+            insignia.setForeground(Color.WHITE);
+            insignia.setFont(fuenteInterfaz(Font.BOLD, 11f));
+            insignia.setBorder(new EmptyBorder(5, 8, 5, 8));
+
+            cabecera.add(titulo, BorderLayout.CENTER);
+            cabecera.add(insignia, BorderLayout.EAST);
+            informacion.add(cabecera);
+            informacion.add(Box.createVerticalStrut(7));
+
+            informacion.add(crearGrupoDetalleBCP("Identificación y estado",
+                    new String[][] {
+                            { "Estado", p.getEstado().toString() },
+                            { "Llegada", p.getTiempoLlegada() + " s" },
+                            { "Prioridad", String.valueOf(p.getPrioridad()) },
+                            { "Tiempo CPU", p.getTiempoCPU() + " s" },
+                            { "Ráfaga", p.getRafaga() + " s" },
+                            { "Restante", p.getTiempoRestante() + " s" }
+                    }));
+            informacion.add(Box.createVerticalStrut(8));
+
+            JPanel memoriaYTiempo = crearGrupoDetalleBCP("Memoria y tiempo",
+                    new String[][] {
+                            { "Inicio del programa", String.valueOf(p.getInicioPrograma()) },
+                            { "Fin del programa", String.valueOf(p.getFinPrograma()) },
+                            { "Tamaño", p.getTamañoPrograma() + " instrucciones" },
+                            { "Dirección BCP", String.valueOf(p.getDireccionBCP()) },
+                            { "Inicio real", hora(p.getHoraInicio()) },
+                            { "Fin real", hora(p.getHoraFinal()) }
+                    });
+
+            JPanel registrosYContexto = crearGrupoDetalleBCP("Registros y contexto",
+                    new String[][] {
+                            { "PC", String.valueOf(p.getPC()) },
+                            { "IR · instrucción", String.valueOf(p.getIR()) },
+                            { "AC", String.valueOf(p.getAC()) },
+                            { "Zero Flag", String.valueOf(p.isZeroFlag()) },
+                            { "AX", String.valueOf(p.getAX()) },
+                            { "BX", String.valueOf(p.getBX()) },
+                            { "CX", String.valueOf(p.getCX()) },
+                            { "DX", String.valueOf(p.getDX()) },
+                            { "AH", String.valueOf(p.getAH()) },
+                            { "AL", String.valueOf(p.getAL()) },
+                            { "Pila", String.valueOf(p.getPila()) },
+                            { "CPU", String.valueOf(p.getCpuAsignada()) }
+                    });
+
+            if (p.getMotivoError() != null && !p.getMotivoError().isBlank()) {
+                informacion.add(Box.createVerticalStrut(8));
+                JLabel error = new JLabel("<html><b>Error:</b> "
+                        + escaparHTML(p.getMotivoError()) + "</html>");
+                error.setOpaque(true);
+                error.setBackground(ROJO_SUAVE);
+                error.setForeground(ROJO);
+                error.setBorder(new EmptyBorder(8, 8, 8, 8));
+                error.setAlignmentX(Component.LEFT_ALIGNMENT);
+                informacion.add(error);
+            }
+
+            // Tres vistas cortas evitan un BCP demasiado alto o difícil de leer.
+            pestañasBCP.addTab("General", crearVistaDetalle(informacion));
+            pestañasBCP.addTab("Memoria y tiempo", crearVistaDetalle(memoriaYTiempo));
+            pestañasBCP.addTab("Registros", crearVistaDetalle(registrosYContexto));
+        }
+
+        pestañasBCP.setSelectedIndex(Math.max(0,
+                Math.min(pestañaActiva, pestañasBCP.getTabCount() - 1)));
+        pestañasBCP.revalidate();
+        pestañasBCP.repaint();
+    }
+
+    /** Añade desplazamiento vertical individual a cada vista del BCP. */
+    private JScrollPane crearVistaDetalle(JPanel contenido) {
+        JPanel contenedor = new JPanel(new BorderLayout());
+        contenedor.setBackground(PANEL);
+        contenedor.setBorder(new EmptyBorder(5, 5, 5, 5));
+        contenedor.add(contenido, BorderLayout.NORTH);
+        JScrollPane desplazamiento = new JScrollPane(contenedor);
+        desplazamiento.setBorder(null);
+        desplazamiento.getVerticalScrollBar().setUnitIncrement(18);
+        return desplazamiento;
+    }
+
+    /** Crea un grupo de datos del BCP con dos columnas de tarjetas. */
+    private JPanel crearGrupoDetalleBCP(String titulo, String[][] datos) {
+
+        JPanel grupo = new JPanel(new GridLayout(0, 2, 7, 6));
+        grupo.setBackground(PANEL);
+        grupo.setBorder(tituloInterno(titulo));
+        grupo.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        for (String[] dato : datos) {
+            grupo.add(crearDatoDetalleBCP(dato[0], dato[1]));
+        }
+
+        return grupo;
+    }
+
+    /** Muestra un atributo individual del BCP con etiqueta y valor. */
+    private JPanel crearDatoDetalleBCP(String nombre, String valor) {
+
+        JPanel celda = new JPanel(new BorderLayout(2, 3));
+        celda.setBackground(new Color(245, 248, 252));
+        celda.setBorder(new EmptyBorder(6, 8, 6, 8));
+
+        JLabel etiqueta = new JLabel(nombre);
+        etiqueta.setForeground(TEXTO_SECUNDARIO);
+        etiqueta.setFont(fuenteInterfaz(Font.BOLD, 10f));
+
+        JLabel contenido = new JLabel(valor == null ? "—" : valor);
+        contenido.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
+        contenido.setForeground(TEXTO);
+        contenido.setToolTipText(valor);
+
+        celda.add(etiqueta, BorderLayout.NORTH);
+        celda.add(contenido, BorderLayout.CENTER);
+
+        return celda;
+    }
+
+    /** Evita que textos de error sean interpretados como HTML. */
+    private static String escaparHTML(String texto) {
+        return texto.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;");
+    }
+
+    // =========================================================
+    // RENDERIZADOR DE PROCESOS
+    // =========================================================
+
+    private class RenderizadorProcesos
+            extends DefaultTableCellRenderer {
+
+        @Override
+        public Component getTableCellRendererComponent(
+                JTable table,
+                Object value,
+                boolean isSelected,
+                boolean hasFocus,
+                int row,
+                int column) {
+
+            Component componente = super.getTableCellRendererComponent(
+                    table,
+                    value,
+                    isSelected,
+                    hasFocus,
+                    row,
+                    column);
+
+            if (column == 0) {
+                componente.setBackground(new Color(230, 236, 245));
+                componente.setForeground(TEXTO);
+                setFont(table.getFont().deriveFont(Font.BOLD));
+                setToolTipText("Atributo del bloque de control de proceso");
+                return componente;
+            }
+
+            String estadoProceso = table.getValueAt(FILA_ESTADO, column).toString();
+
+            String cpuTexto = table.getValueAt(FILA_CPU, column).toString();
+            int numero = -1;
+
+            if (cpuTexto.startsWith("CPU ")) {
                 try {
-
-                        if (listo) {
-
-                                cantidadCPU.setValue(
-                                                controlador.getCantidadCPU());
-
-                                TipoAlgoritmo tipo = controlador.getAlgoritmoSeleccionado();
-
-                                algoritmos.setSelectedItem(tipo);
-                        }
-
-                } finally {
-
-                        ajustandoControles = false;
+                    numero = Integer.parseInt(cpuTexto.substring(4));
+                } catch (NumberFormatException ignorado) {
+                    // El proceso todavía puede estar sin CPU asignada.
                 }
-
-                boolean configurables = listo
-                                && controlador.getTiempoSimulado() == 0
-                                && !continuarAutomatico;
-
-                cantidadCPU.setEnabled(configurables);
-                algoritmos.setEnabled(configurables);
-
-                valorReloj.setText(
-                                listo
-                                                ? "RELOJ  " + controlador.getTiempoSimulado() + " s"
-                                                : "RELOJ  0 s");
-
-                algoritmoSuperior.setText(
-                                "Algoritmo: " + (!listo || controlador.getAlgoritmoSeleccionado() == null
-                                                ? "sin seleccionar"
-                                                : controlador.getAlgoritmoSeleccionado().name()));
-
-                valorNucleos.setText(
-                                listo
-                                                ? controlador.getCantidadCPU() + " / 5"
-                                                : "1 / 5");
-
-                if (!listo) {
-
-                        estadoSimulacion.setText(
-                                        "Carga una configuración");
-
-                } else if (continuarAutomatico) {
-
-                        estadoSimulacion.setText(
-                                        "En ejecución");
-
-                } else if (controlador.getTiempoSimulado() == 0) {
-
-                        estadoSimulacion.setText(
-                                        controlador.getAlgoritmoSeleccionado() == null
-                                                        ? "Selecciona un algoritmo"
-                                                        : "Listo para iniciar");
-
-                } else if (controlador.simulacionFinalizada()) {
-
-                        estadoSimulacion.setText(
-                                        "Simulación finalizada");
-
-                } else {
-
-                        estadoSimulacion.setText(
-                                        "Pausado en t="
-                                                        + controlador.getTiempoSimulado()
-                                                        + " s");
-                }
-
-                // Botones.
-                cargar.setEnabled(listo);
-                disco.setEnabled(listo);
-                pausa.setEnabled(continuarAutomatico);
-
-                boolean ejecutable = listo && hayEjecutable();
-
-                siguiente.setEnabled(
-                                ejecutable && !continuarAutomatico);
-
-                automatico.setEnabled(
-                                ejecutable && !continuarAutomatico);
-
-                // Detectar espera de teclado en cualquier CPU.
-                boolean espera = false;
-
-                if (listo) {
-
-                        for (ContextoNucleo nucleo : controlador.getNucleos()) {
-
-                                if (nucleo.getInterrupciones()
-                                                .hayProcesoEsperandoTeclado()) {
-
-                                        espera = true;
-                                        break;
-                                }
-                        }
-                }
-
-                enviar.setEnabled(espera);
-                entrada.setEnabled(espera);
-
-                if (!listo) {
-
-                        valorRAM.setText("-");
-                        valorKernel.setText("-");
-                        valorProgramasEnRAM.setText("-");
-                        valorDisco.setText("-");
-
-                        procesoCPU.setText("Sin CPU configurada");
-
-                        actualizarCronograma();
-                        actualizarTarjetasProcesos();
-                        actualizarDetalle();
-
-                        return;
-                }
-
-                // =====================================================
-                // RESUMEN DE MEMORIA
-                // =====================================================
-
-                int procesosEnRAM = controlador.getGestorProcesos()
-                                .getProcesosEnRAM().size();
-
-                int memoriaTotal = configuracion.getTamañoMemoria();
-
-                int kernel = configuracion.getInicioUsuario();
-
-                int usuarioTotal = memoriaTotal - kernel;
-
-                int usuarioOcupado = 0;
-
-                for (int i = controlador.getInicioUsuario(); i < controlador.getSizeMemoria(); i++) {
-
-                        if (controlador.getMemoria().leer(i) != null) {
-
-                                usuarioOcupado++;
-                        }
-                }
-
-                int discoOcupado = controlador.getAlmacenamiento()
-                                .getEspacioArchivosOcupado();
-
-                int discoTotal = controlador.getAlmacenamiento()
-                                .getTamañoArchivos();
-
-                valorRAM.setText(
-                                usuarioOcupado + " / " + usuarioTotal);
-
-                valorKernel.setText(
-                                kernel + " posiciones");
-
-                valorProgramasEnRAM.setText(
-                                procesosEnRAM
-                                                + " / "
-                                                + configuracion.getMaxProcesosEnRam());
-
-                valorDisco.setText(
-                                discoOcupado + " / " + discoTotal);
-
-                barraRAM.setMaximum(
-                                Math.max(usuarioTotal, 1));
-
-                barraRAM.setValue(usuarioOcupado);
-
-                barraRAM.setString(
-                                usuarioTotal == 0
-                                                ? "0%"
-                                                : (usuarioOcupado * 100 / usuarioTotal)
-                                                                + "%");
-
-                barraDisco.setMaximum(
-                                Math.max(discoTotal, 1));
-
-                barraDisco.setValue(
-                                Math.min(discoOcupado, discoTotal));
-
-                barraDisco.setString(
-                                discoTotal == 0
-                                                ? "0%"
-                                                : (discoOcupado * 100 / discoTotal)
-                                                                + "%");
-
-                // =====================================================
-                // ACTUALIZAR CPU SELECCIONADA
-                // =====================================================
-
-                actualizarCPUSeleccionada();
-
-                // =====================================================
-                // TABLA DE PROCESOS
-                // =====================================================
-
-                actualizando = true;
-
-                trabajos.setRowCount(0);
-                trabajos.setColumnCount(1);
-
-                // Filas = atributos, columnas = procesos (matriz transpuesta).
-                for (String campo : CAMPOS_PROCESO) {
-                        trabajos.addRow(new Object[] { campo });
-                }
-
-                StringBuilder resumenEstadisticas = new StringBuilder();
-
-                for (BCP p : controlador.getGestorProcesos()
-                                .getListaTrabajos()) {
-
-                        String ubicacion = p.getEstado() == EstadoProceso.FINALIZADO
-                                        ? "Liberada"
-                                        : controlador.getGestorMemoriaVirtual()
-                                                        .estaEnMemoriaVirtual(p)
-                                                                        ? "Virtual @"
-                                                                                        + controlador
-                                                                                                        .getGestorMemoriaVirtual()
-                                                                                                        .getDireccionVirtual(
-                                                                                                                        p)
-                                                                        : "RAM";
-
-                        trabajos.addColumn("PID " + p.getPid(), new String[] {
-                                        Integer.toString(p.getPid()),
-                                        p.getCpuAsignada() < 1
-                                                        ? "Sin CPU"
-                                                        : "CPU " + p.getCpuAsignada(),
-                                        nombres.getOrDefault(p.getPid(), ""),
-                                        p.getEstado().toString(),
-                                        ubicacion,
-                                        Integer.toString(p.getInicioPrograma()),
-                                        Integer.toString(p.getTamañoPrograma()),
-                                        Integer.toString(p.getTiempoCPU()),
-                                        Integer.toString(p.getRafaga()),
-                                        Integer.toString(p.getTiempoLlegada()),
-                                        Integer.toString(p.getTiempoRestante())
-                        });
-
-                        resumenEstadisticas
-                                        .append("PROCESO PID ")
-                                        .append(p.getPid())
-                                        .append(" · ")
-                                        .append(nombres.getOrDefault(
-                                                        p.getPid(), ""))
-                                        .append(" · CPU ")
-                                        .append(p.getCpuAsignada() < 1
-                                                        ? "sin asignar"
-                                                        : Integer.toString(p.getCpuAsignada()))
-                                        .append("\n────────────────────────────\n")
-                                        .append("Estado: ")
-                                        .append(p.getEstado())
-                                        .append("\nResultado: ")
-                                        .append(
-                                                        !p.getMotivoError().isEmpty()
-                                                                        ? "Error: "
-                                                                                        + p.getMotivoError()
-                                                                        : p.getHoraFinal() == null
-                                                                                        ? "Pendiente"
-                                                                                        : "Finalización normal")
-                                        .append("\nInicio: ")
-                                        .append(hora(p.getHoraInicio()))
-                                        .append("\nFin: ")
-                                        .append(hora(p.getHoraFinal()))
-                                        .append("\nDuración real: ")
-                                        .append(
-                                                        p.getHoraFinal() == null
-                                                                        ? "Pendiente"
-                                                                        : String.format(
-                                                                                        java.util.Locale.ROOT,
-                                                                                        "%.3f s",
-                                                                                        p.getTiempoTotalSegundos()))
-                                        .append("\nTiempo CPU: ")
-                                        .append(p.getTiempoCPU())
-                                        .append(" s")
-                                        .append("\n\nContexto ")
-                                        .append(
-                                                        p.getHoraFinal() == null
-                                                                        ? "actual"
-                                                                        : "final")
-                                        .append("\nPC: ")
-                                        .append(p.getPC())
-                                        .append("\nIR: ")
-                                        .append(p.getIR())
-                                        .append("\nAC: ")
-                                        .append(p.getAC())
-                                        .append("\nAX: ")
-                                        .append(p.getAX())
-                                        .append("\nBX: ")
-                                        .append(p.getBX())
-                                        .append("\nCX: ")
-                                        .append(p.getCX())
-                                        .append("\nDX: ")
-                                        .append(p.getDX())
-                                        .append("\nAH: ")
-                                        .append(p.getAH())
-                                        .append("\nAL: ")
-                                        .append(p.getAL())
-                                        .append("\nZF: ")
-                                        .append(p.isZeroFlag())
-                                        .append("\nPila: ")
-                                        .append(p.getPila())
-                                        .append("\n\n\n");
-
-                }
-
-                // Restaurar tamaños y selección después de recrear las columnas.
-                tablaTrabajos.getColumnModel().getColumn(0).setPreferredWidth(150);
-
-                for (int columna = 1; columna < trabajos.getColumnCount(); columna++) {
-                        tablaTrabajos.getColumnModel().getColumn(columna).setPreferredWidth(150);
-
-                        if (seleccionado != null
-                                        && Integer.toString(seleccionado)
-                                                        .equals(trabajos.getValueAt(FILA_PID, columna).toString())) {
-
-                                tablaTrabajos.setColumnSelectionInterval(columna, columna);
-                        }
-                }
-
-                actualizando = false;
-
-                actualizarCronograma();
-                actualizarTarjetasProcesos();
-
-                String contenidoEstadisticas = resumenEstadisticas.length() == 0
-                                ? "Todavía no hay procesos cargados."
-                                : resumenEstadisticas.toString();
-
-                if (!estadisticas.getText()
-                                .equals(contenidoEstadisticas)) {
-
-                        int posicion = estadisticas.getCaretPosition();
-
-                        estadisticas.setText(
-                                        contenidoEstadisticas);
-
-                        estadisticas.setCaretPosition(
-                                        Math.min(
-                                                        posicion,
-                                                        estadisticas.getDocument()
-                                                                        .getLength()));
-                }
-
-                // =====================================================
-                // RAM
-                // =====================================================
-
-                ram.setRowCount(0);
-
-                for (int i = 0; i < controlador.getSizeMemoria(); i++) {
-
-                        String contenido = i < controlador.getInicioUsuario()
-                                        ? controlador.getMemoria()
-                                                        .obtenerContenido(i)
-                                        : controlador.getMemoria()
-                                                        .leer(i) == null
-                                                                        ? ""
-                                                                        : controlador.getMemoria()
-                                                                                        .leer(i)
-                                                                                        .getTextoOriginal();
-
-                        ram.addRow(new String[] {
-                                        Integer.toString(i),
-                                        i < controlador.getInicioUsuario()
-                                                        ? "Kernel"
-                                                        : "Usuario",
-                                        contenido
-                        });
-                }
-
-                // =====================================================
-                // DISCO
-                // =====================================================
-
-                Almacenamiento a = controlador.getAlmacenamiento();
-
-                almacenamiento.setRowCount(0);
-
-                for (int i = 0; i < a.getSize(); i++) {
-
-                        almacenamiento.addRow(new String[] {
-                                        Integer.toString(i),
-                                        i < a.getTamañoIndice()
-                                                        ? "Índice"
-                                                        : i < a.getInicioMemoriaVirtual()
-                                                                        ? "Archivos"
-                                                                        : "Virtual",
-                                        a.obtenerContenido(i)
-                        });
-                }
-
-                // =====================================================
-                // ARCHIVOS
-                // =====================================================
-
-                archivos.setRowCount(0);
-
-                for (ArchivoSimulado f : a.listarArchivos()) {
-
-                        archivos.addRow(new String[] {
-                                        f.getNombre(),
-                                        Integer.toString(
-                                                        f.getDireccionInicio()),
-                                        Integer.toString(
-                                                        f.getTamaño()),
-                                        Integer.toString(
-                                                        f.getEspacioOcupado()),
-                                        f.esPrograma()
-                                                        ? "Programa ASM"
-                                                        : "Texto"
-                        });
-                }
-
-                // =====================================================
-                // CONSOLA DE TODAS LAS CPU
-                // =====================================================
-
-                java.util.List<String> salidas = new java.util.ArrayList<>();
-
-                for (ContextoNucleo nucleo : controlador.getNucleos()) {
-
-                        for (String mensaje : nucleo.getInterrupciones()
-                                        .getSalidas()) {
-
-                                salidas.add(
-                                                "[CPU "
-                                                                + nucleo.getCpu().getId()
-                                                                + "] "
-                                                                + mensaje);
-                        }
-                }
-
-                java.util.List<String> errores = controlador.getErroresEjecucion();
-
-                String contenidoMonitor = String.join("\n", salidas);
-
-                if (!errores.isEmpty()) {
-
-                        contenidoMonitor += (contenidoMonitor.isEmpty()
-                                        ? ""
-                                        : "\n\n")
-                                        + "Errores de ejecución:\n"
-                                        + String.join("\n", errores);
-                }
-
-                if (!pantalla.getText()
-                                .equals(contenidoMonitor)) {
-
-                        pantalla.setText(
-                                        contenidoMonitor);
-
-                        pantalla.setCaretPosition(
-                                        pantalla.getDocument()
-                                                        .getLength());
-                }
-
-                estadoMonitor.setText(
-                                espera
-                                                ? "Hay una solicitud de entrada pendiente."
-                                                : "Salida de programas · "
-                                                                + salidas.size()
-                                                                + " mensajes");
-
-                actualizarDetalle();
+            }
+
+            if (row == FILA_CPU && numero > 0) {
+                // La fila de CPU identifica por color cada columna-proceso.
+                componente.setBackground(colorCPU(numero));
+                componente.setForeground(Color.WHITE);
+
+            } else if (isSelected) {
+                componente.setBackground(numero > 0
+                        ? fondoCPU(numero).darker()
+                        : AZUL_SUAVE);
+                componente.setForeground(TEXTO);
+
+            } else if (row == FILA_LLEGADA
+                    && trabajos.isCellEditable(row, column)) {
+                // El amarillo identifica la celda editable por doble clic.
+                componente.setBackground(new Color(255, 248, 212));
+                componente.setForeground(new Color(114, 77, 14));
+
+            } else {
+                componente.setBackground(numero > 0
+                        ? fondoCPU(numero)
+                        : GRIS_SUAVE);
+                componente.setForeground(TEXTO);
+            }
+
+            setFont(table.getFont().deriveFont(
+                    row == FILA_PID || row == FILA_CPU || row == FILA_LLEGADA
+                            || estadoProceso.equals("EJECUCION")
+                            ? Font.BOLD : Font.PLAIN));
+
+            setToolTipText(row == FILA_LLEGADA
+                    ? "Doble clic para editar la llegada antes de iniciar"
+                    : "Proceso " + table.getValueAt(FILA_PID, column)
+                            + " asignado a " + cpuTexto);
+
+            return componente;
         }
+    }
 
-        // =========================================================
-        // HISTORIAL DE EJECUCIÓN Y CRONOGRAMA
-        // =========================================================
+    /**
+     * Representa cada segundo ejecutado mediante una celda coloreada.
+     * Los colores se mantienen iguales a los de la lista de trabajos.
+     */
+    private class RenderizadorCronograma extends DefaultTableCellRenderer {
 
-        /**
-         * Registra qué proceso consumió cada segundo de cada CPU.
-         *
-         * Se compara el tiempo CPU de los BCP para incluir las instrucciones
-         * de finalización, aunque el proceso ya no esté en EJECUCION.
-         *
-         * @param segundo      segundo que acaba de ejecutarse (comienza en 1)
-         * @param tiemposAntes tiempo CPU por PID antes del tick
-         */
-        private void registrarSegundoEjecutado(
-                        int segundo,
-                        Map<Integer, Integer> tiemposAntes) {
+        @Override
+        public Component getTableCellRendererComponent(
+                JTable table, Object value, boolean isSelected,
+                boolean hasFocus, int row, int column) {
 
-                Map<Integer, Integer> ejecutados = new HashMap<>();
+            Component componente = super.getTableCellRendererComponent(
+                    table, value, isSelected, hasFocus, row, column);
 
-                for (BCP proceso : controlador.getGestorProcesos().getListaTrabajos()) {
+            setToolTipText(null);
 
-                        int tiempoAnterior = tiemposAntes.getOrDefault(proceso.getPid(), 0);
+            String etiqueta = String.valueOf(table.getValueAt(row, 0));
+            int cpuId = 1;
 
-                        if (proceso.getTiempoCPU() > tiempoAnterior
-                                        && proceso.getCpuAsignada() >= 1) {
+            try {
+                cpuId = Integer.parseInt(etiqueta.substring(4));
+            } catch (RuntimeException ignorado) {
+                // En ausencia de una CPU válida, usar el color inicial.
+            }
 
-                                ejecutados.put(proceso.getCpuAsignada(), proceso.getPid());
-                        }
-                }
+            if (column == 0) {
+                componente.setBackground(colorCPU(cpuId));
+                componente.setForeground(Color.WHITE);
+                setHorizontalAlignment(SwingConstants.CENTER);
+                setFont(table.getFont().deriveFont(Font.BOLD));
 
-                // Puede quedar vacío si todas las CPU estuvieron ociosas.
-                historialEjecucion.put(segundo, ejecutados);
+            } else if (column == 1) {
+                componente.setBackground(fondoCPU(cpuId));
+                componente.setForeground(TEXTO);
+                setHorizontalAlignment(SwingConstants.LEFT);
+                setFont(table.getFont().deriveFont(Font.BOLD));
+
+            } else {
+                boolean ejecutado = "■".equals(value);
+
+                componente.setBackground(ejecutado
+                        ? colorCPU(cpuId)
+                        : (row % 2 == 0 ? Color.WHITE : new Color(247, 249, 252)));
+                componente.setForeground(ejecutado ? Color.WHITE : TEXTO);
+                setHorizontalAlignment(SwingConstants.CENTER);
+                setFont(table.getFont().deriveFont(Font.BOLD, 15f));
+
+                setToolTipText("CPU " + cpuId + " · "
+                        + table.getValueAt(row, 1) + " · segundo " + (column - 1)
+                        + (ejecutado ? " · ejecutó 1 s" : " · no ejecutó"));
+            }
+
+            return componente;
         }
+    }
 
-        /**
-         * Actualiza la tabla temporal sin modificar el estado del simulador.
-         * Presenta una fila por proceso agrupada según su CPU asignada.
-         */
-        private void actualizarCronograma() {
+    // =========================================================
+    // RENDERIZADOR DE MEMORIA
+    // =========================================================
 
-                int tiempo = controlador == null ? 0 : controlador.getTiempoSimulado();
+    private class RenderizadorMemoria
+            extends DefaultTableCellRenderer {
 
-                // Extender las columnas al superar los primeros 80 segundos.
-                if (tiempo + 2 > modeloCronograma.getColumnCount()) {
+        @Override
+        public Component getTableCellRendererComponent(
+                JTable table,
+                Object value,
+                boolean isSelected,
+                boolean hasFocus,
+                int row,
+                int column) {
 
-                        while (modeloCronograma.getColumnCount() < tiempo + 2) {
-                                int segundoNuevo = modeloCronograma.getColumnCount() - 1;
-                                modeloCronograma.addColumn(Integer.toString(segundoNuevo));
-                        }
+            Component componente = super.getTableCellRendererComponent(
+                    table,
+                    value,
+                    isSelected,
+                    hasFocus,
+                    row,
+                    column);
 
-                        tablaCronograma.getColumnModel().getColumn(0).setPreferredWidth(90);
-                        tablaCronograma.getColumnModel().getColumn(1).setPreferredWidth(190);
+            if (isSelected) {
+                return componente;
+            }
 
-                        for (int columna = 2; columna < modeloCronograma.getColumnCount(); columna++) {
-                                tablaCronograma.getColumnModel().getColumn(columna).setPreferredWidth(40);
-                        }
-                }
+            String area = table.getValueAt(row, 1).toString();
 
-                modeloCronograma.setRowCount(0);
-                pidsCronograma.clear();
+            componente.setBackground(
+                    area.equals("Kernel")
+                            ? MORADO_SUAVE
+                            : Color.WHITE);
 
-                if (controlador == null) {
-                        resumenCronograma.setText("0 s registrados");
-                        return;
-                }
+            componente.setForeground(TEXTO);
 
-                List<BCP> procesos = new ArrayList<>(
-                                controlador.getGestorProcesos().getListaTrabajos());
-
-                // Mantener juntas las filas que pertenecen a una misma CPU.
-                procesos.sort((primero, segundo) -> {
-                        int comparacion = Integer.compare(
-                                        primero.getCpuAsignada(), segundo.getCpuAsignada());
-                        return comparacion != 0
-                                        ? comparacion
-                                        : Integer.compare(primero.getPid(), segundo.getPid());
-                });
-
-                for (BCP proceso : procesos) {
-
-                        int cpuId = proceso.getCpuAsignada();
-                        if (cpuId < 1) {
-                                continue;
-                        }
-
-                        Object[] fila = new Object[modeloCronograma.getColumnCount()];
-                        fila[0] = "CPU " + cpuId;
-                        fila[1] = "PID " + proceso.getPid() + " · "
-                                        + nombres.getOrDefault(proceso.getPid(), "Proceso");
-
-                        for (int segundo = 1; segundo <= tiempo; segundo++) {
-
-                                Map<Integer, Integer> porCPU = historialEjecucion.get(segundo);
-
-                                if (porCPU != null
-                                                && Integer.valueOf(proceso.getPid()).equals(porCPU.get(cpuId))) {
-                                        fila[segundo + 1] = "■";
-                                }
-                        }
-
-                        modeloCronograma.addRow(fila);
-                        pidsCronograma.add(proceso.getPid());
-                }
-
-                int segundosOcupados = 0;
-                for (Map<Integer, Integer> segundo : historialEjecucion.values()) {
-                        segundosOcupados += segundo.size();
-                }
-
-                resumenCronograma.setText(
-                                tiempo + " s · " + segundosOcupados + " s de CPU acumulados");
-
-                // Mantener visible el segundo reciente durante la ejecución.
-                if (tiempo > 0 && seguirCronograma.isSelected()) {
-                        desplazarCronograma(tiempo);
-                }
+            return componente;
         }
+    }
 
-        /** Desplaza horizontalmente la línea de tiempo a un segundo. */
-        private void desplazarCronograma(int segundo) {
+    // =========================================================
+    // RENDERIZADOR DE ALMACENAMIENTO
+    // =========================================================
 
-                if (tablaCronograma.getRowCount() == 0) {
-                        return;
-                }
+    private class RenderizadorAlmacenamiento
+            extends DefaultTableCellRenderer {
 
-                int columna = Math.min(
-                                Math.max(2, segundo + 1),
-                                tablaCronograma.getColumnCount() - 1);
+        @Override
+        public Component getTableCellRendererComponent(
+                JTable table,
+                Object value,
+                boolean isSelected,
+                boolean hasFocus,
+                int row,
+                int column) {
 
-                tablaCronograma.scrollRectToVisible(
-                                tablaCronograma.getCellRect(0, columna, true));
+            Component componente = super.getTableCellRendererComponent(
+                    table,
+                    value,
+                    isSelected,
+                    hasFocus,
+                    row,
+                    column);
+
+            if (isSelected) {
+                return componente;
+            }
+
+            String area = table.getValueAt(row, 1).toString();
+
+            if (area.equals("Índice")) {
+
+                componente.setBackground(AZUL_SUAVE);
+
+            } else if (area.equals("Virtual")) {
+
+                componente.setBackground(MORADO_SUAVE);
+
+            } else {
+
+                componente.setBackground(Color.WHITE);
+            }
+
+            componente.setForeground(TEXTO);
+
+            return componente;
         }
-
-        /** Abre el BCP correspondiente al proceso elegido en el cronograma. */
-        private void seleccionarProcesoCronograma(int pid) {
-
-                seleccionado = pid;
-
-                for (int columna = 1; columna < trabajos.getColumnCount(); columna++) {
-                        if (Integer.toString(pid).equals(
-                                        trabajos.getValueAt(FILA_PID, columna).toString())) {
-                                tablaTrabajos.setColumnSelectionInterval(columna, columna);
-                                tablaTrabajos.scrollRectToVisible(
-                                                tablaTrabajos.getCellRect(FILA_PID, columna, true));
-                                break;
-                        }
-                }
-
-                BCP proceso = controlador.getGestorProcesos().buscarProceso(pid);
-                if (proceso != null && proceso.getCpuAsignada() >= 1
-                                && proceso.getCpuAsignada() <= controlador.getCantidadCPU()) {
-                        cpuSeleccionada = proceso.getCpuAsignada();
-                        actualizarCPUSeleccionada();
-                }
-
-                actualizarDetalle();
-                actualizarTarjetasProcesos();
-        }
-
-        // =========================================================
-        // NAVEGACIÓN ENTRE LAS CPU
-        // =========================================================
-
-        /**
-         * Avanza o retrocede de forma circular entre las CPU configuradas.
-         * Cada flecha cambia únicamente la CPU mostrada en la interfaz.
-         */
-        private void cambiarCPUVisible(int desplazamiento) {
-
-                if (controlador == null || controlador.getCantidadCPU() == 0) {
-                        return;
-                }
-
-                int cantidad = controlador.getCantidadCPU();
-                cpuSeleccionada = Math.floorMod(
-                                cpuSeleccionada - 1 + desplazamiento, cantidad) + 1;
-
-                actualizarCPUSeleccionada();
-        }
-
-        // =========================================================
-        // REGISTROS DE CPU SELECCIONADA
-        // =========================================================
-
-        private void actualizarCPUSeleccionada() {
-
-                if (controlador == null
-                                || controlador.getCantidadCPU() < 1) {
-                        return;
-                }
-
-                cpuSeleccionada = Math.max(1,
-                                Math.min(cpuSeleccionada, controlador.getCantidadCPU()));
-
-                int numero = cpuSeleccionada;
-
-                cpuAnterior.setEnabled(controlador.getCantidadCPU() > 1);
-                cpuSiguiente.setEnabled(controlador.getCantidadCPU() > 1);
-
-                CPU cpuSeleccionada = controlador.getCPU(numero);
-
-                BCP proceso = controlador.getProcesoActual(numero);
-
-                procesoCPU.setText(
-                                proceso == null
-                                                ? "CPU " + numero + " de " + controlador.getCantidadCPU() + " · Libre"
-                                                : "CPU " + numero + " de " + controlador.getCantidadCPU()
-                                                                + " · Ejecutando PID "
-                                                                + proceso.getPid());
-
-                procesoCPU.setForeground(
-                                proceso == null
-                                                ? TEXTO_SECUNDARIO
-                                                : colorCPU(numero));
-
-                valorPC.setText(
-                                String.valueOf(
-                                                cpuSeleccionada.getPC()));
-
-                String ir = proceso == null || cpuSeleccionada.getIR() == null
-                                ? "—"
-                                : cpuSeleccionada.getIR();
-
-                valorIR.setText(
-                                ir.length() > 18
-                                                ? ir.substring(0, 18) + "..."
-                                                : ir);
-
-                valorIR.setToolTipText(ir);
-
-                valorAC.setText(
-                                String.valueOf(
-                                                cpuSeleccionada.getAC()));
-
-                valorAX.setText(
-                                String.valueOf(
-                                                cpuSeleccionada.getRegistros().getAX()));
-
-                valorBX.setText(
-                                String.valueOf(
-                                                cpuSeleccionada.getRegistros().getBX()));
-
-                valorCX.setText(
-                                String.valueOf(
-                                                cpuSeleccionada.getRegistros().getCX()));
-
-                valorDX.setText(
-                                String.valueOf(
-                                                cpuSeleccionada.getRegistros().getDX()));
-
-                valorAH.setText(
-                                String.valueOf(
-                                                cpuSeleccionada.getRegistros().getAH()));
-
-                valorAL.setText(
-                                String.valueOf(
-                                                cpuSeleccionada.getRegistros().getAL()));
-
-                valorZF.setText(
-                                String.valueOf(
-                                                cpuSeleccionada.isZeroFlag()));
-
-                tiempoOcupadoCPU.setText(cpuSeleccionada.getTiempoOcupado() + " s");
-                tiempoOciosoCPU.setText(cpuSeleccionada.getTiempoOcioso() + " s");
-        }
-
-        // =========================================================
-        // DETALLE DEL BCP
-        // =========================================================
-
-        private void actualizarDetalle() {
-
-                BCP p = seleccionado == null
-                                || controlador == null
-                                                ? null
-                                                : controlador.getGestorProcesos()
-                                                                .buscarProceso(seleccionado);
-
-                // Mantener la pestaña elegida mientras el reloj actualiza los datos.
-                int pestañaActiva = pestañasBCP.getSelectedIndex();
-                pestañasBCP.removeAll();
-
-                if (p == null) {
-                        JLabel ayuda = new JLabel(
-                                        "<html>Selecciona <b>Ver BCP</b> en una tarjeta "
-                                                        + "para consultar el proceso.</html>");
-                        ayuda.setForeground(TEXTO_SECUNDARIO);
-                        ayuda.setBorder(new EmptyBorder(10, 8, 10, 8));
-                        pestañasBCP.addTab("General", ayuda);
-
-                } else {
-
-                        JPanel informacion = new JPanel();
-                        informacion.setLayout(new BoxLayout(informacion, BoxLayout.Y_AXIS));
-                        informacion.setOpaque(false);
-
-                        // Encabezado con PID, nombre y color de CPU.
-                        JPanel cabecera = new JPanel(new BorderLayout(7, 4));
-                        cabecera.setOpaque(false);
-                        cabecera.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-                        JLabel titulo = new JLabel("PID " + p.getPid() + " · "
-                                        + nombres.getOrDefault(p.getPid(), "Proceso"));
-                        titulo.setFont(fuenteInterfaz(Font.BOLD, 14f));
-                        titulo.setForeground(TEXTO);
-                        titulo.setToolTipText(titulo.getText());
-
-                        JLabel insignia = new JLabel(p.getCpuAsignada() < 1
-                                        ? "SIN CPU"
-                                        : "CPU " + p.getCpuAsignada());
-                        insignia.setOpaque(true);
-                        insignia.setBackground(colorCPU(p.getCpuAsignada()));
-                        insignia.setForeground(Color.WHITE);
-                        insignia.setFont(fuenteInterfaz(Font.BOLD, 11f));
-                        insignia.setBorder(new EmptyBorder(5, 8, 5, 8));
-
-                        cabecera.add(titulo, BorderLayout.CENTER);
-                        cabecera.add(insignia, BorderLayout.EAST);
-                        informacion.add(cabecera);
-                        informacion.add(Box.createVerticalStrut(7));
-
-                        informacion.add(crearGrupoDetalleBCP("Identificación y estado",
-                                        new String[][] {
-                                                        { "Estado", p.getEstado().toString() },
-                                                        { "Llegada", p.getTiempoLlegada() + " s" },
-                                                        { "Prioridad", String.valueOf(p.getPrioridad()) },
-                                                        { "Tiempo CPU", p.getTiempoCPU() + " s" },
-                                                        { "Ráfaga", p.getRafaga() + " s" },
-                                                        { "Restante", p.getTiempoRestante() + " s" }
-                                        }));
-                        informacion.add(Box.createVerticalStrut(8));
-
-                        JPanel memoriaYTiempo = crearGrupoDetalleBCP("Memoria y tiempo",
-                                        new String[][] {
-                                                        { "Inicio del programa",
-                                                                        String.valueOf(p.getInicioPrograma()) },
-                                                        { "Fin del programa", String.valueOf(p.getFinPrograma()) },
-                                                        { "Tamaño", p.getTamañoPrograma() + " instrucciones" },
-                                                        { "Dirección BCP", String.valueOf(p.getDireccionBCP()) },
-                                                        { "Inicio real", hora(p.getHoraInicio()) },
-                                                        { "Fin real", hora(p.getHoraFinal()) }
-                                        });
-
-                        JPanel registrosYContexto = crearGrupoDetalleBCP("Registros y contexto",
-                                        new String[][] {
-                                                        { "PC", String.valueOf(p.getPC()) },
-                                                        { "IR · instrucción", String.valueOf(p.getIR()) },
-                                                        { "AC", String.valueOf(p.getAC()) },
-                                                        { "Zero Flag", String.valueOf(p.isZeroFlag()) },
-                                                        { "AX", String.valueOf(p.getAX()) },
-                                                        { "BX", String.valueOf(p.getBX()) },
-                                                        { "CX", String.valueOf(p.getCX()) },
-                                                        { "DX", String.valueOf(p.getDX()) },
-                                                        { "AH", String.valueOf(p.getAH()) },
-                                                        { "AL", String.valueOf(p.getAL()) },
-                                                        { "Pila", String.valueOf(p.getPila()) },
-                                                        { "CPU", String.valueOf(p.getCpuAsignada()) }
-                                        });
-
-                        if (p.getMotivoError() != null && !p.getMotivoError().isBlank()) {
-                                informacion.add(Box.createVerticalStrut(8));
-                                JLabel error = new JLabel("<html><b>Error:</b> "
-                                                + escaparHTML(p.getMotivoError()) + "</html>");
-                                error.setOpaque(true);
-                                error.setBackground(ROJO_SUAVE);
-                                error.setForeground(ROJO);
-                                error.setBorder(new EmptyBorder(8, 8, 8, 8));
-                                error.setAlignmentX(Component.LEFT_ALIGNMENT);
-                                informacion.add(error);
-                        }
-
-                        // Tres vistas cortas evitan un BCP demasiado alto o difícil de leer.
-                        pestañasBCP.addTab("General", crearVistaDetalle(informacion));
-                        pestañasBCP.addTab("Memoria y tiempo", crearVistaDetalle(memoriaYTiempo));
-                        pestañasBCP.addTab("Registros", crearVistaDetalle(registrosYContexto));
-                }
-
-                pestañasBCP.setSelectedIndex(Math.max(0,
-                                Math.min(pestañaActiva, pestañasBCP.getTabCount() - 1)));
-                pestañasBCP.revalidate();
-                pestañasBCP.repaint();
-        }
-
-        /** Añade desplazamiento vertical individual a cada vista del BCP. */
-        private JScrollPane crearVistaDetalle(JPanel contenido) {
-                JPanel contenedor = new JPanel(new BorderLayout());
-                contenedor.setBackground(PANEL);
-                contenedor.setBorder(new EmptyBorder(5, 5, 5, 5));
-                contenedor.add(contenido, BorderLayout.NORTH);
-                JScrollPane desplazamiento = new JScrollPane(contenedor);
-                desplazamiento.setBorder(null);
-                desplazamiento.getVerticalScrollBar().setUnitIncrement(18);
-                return desplazamiento;
-        }
-
-        /** Crea un grupo de datos del BCP con dos columnas de tarjetas. */
-        private JPanel crearGrupoDetalleBCP(String titulo, String[][] datos) {
-
-                JPanel grupo = new JPanel(new GridLayout(0, 2, 7, 6));
-                grupo.setBackground(PANEL);
-                grupo.setBorder(tituloInterno(titulo));
-                grupo.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-                for (String[] dato : datos) {
-                        grupo.add(crearDatoDetalleBCP(dato[0], dato[1]));
-                }
-
-                return grupo;
-        }
-
-        /** Muestra un atributo individual del BCP con etiqueta y valor. */
-        private JPanel crearDatoDetalleBCP(String nombre, String valor) {
-
-                JPanel celda = new JPanel(new BorderLayout(2, 3));
-                celda.setBackground(new Color(245, 248, 252));
-                celda.setBorder(new EmptyBorder(6, 8, 6, 8));
-
-                JLabel etiqueta = new JLabel(nombre);
-                etiqueta.setForeground(TEXTO_SECUNDARIO);
-                etiqueta.setFont(fuenteInterfaz(Font.BOLD, 10f));
-
-                JLabel contenido = new JLabel(valor == null ? "—" : valor);
-                contenido.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
-                contenido.setForeground(TEXTO);
-                contenido.setToolTipText(valor);
-
-                celda.add(etiqueta, BorderLayout.NORTH);
-                celda.add(contenido, BorderLayout.CENTER);
-
-                return celda;
-        }
-
-        /** Evita que textos de error sean interpretados como HTML. */
-        private static String escaparHTML(String texto) {
-                return texto.replace("&", "&amp;")
-                                .replace("<", "&lt;")
-                                .replace(">", "&gt;");
-        }
-
-        // =========================================================
-        // RENDERIZADOR DE PROCESOS
-        // =========================================================
-
-        private class RenderizadorProcesos
-                        extends DefaultTableCellRenderer {
-
-                @Override
-                public Component getTableCellRendererComponent(
-                                JTable table,
-                                Object value,
-                                boolean isSelected,
-                                boolean hasFocus,
-                                int row,
-                                int column) {
-
-                        Component componente = super.getTableCellRendererComponent(
-                                        table,
-                                        value,
-                                        isSelected,
-                                        hasFocus,
-                                        row,
-                                        column);
-
-                        if (column == 0) {
-                                componente.setBackground(new Color(230, 236, 245));
-                                componente.setForeground(TEXTO);
-                                setFont(table.getFont().deriveFont(Font.BOLD));
-                                setToolTipText("Atributo del bloque de control de proceso");
-                                return componente;
-                        }
-
-                        String estadoProceso = table.getValueAt(FILA_ESTADO, column).toString();
-
-                        String cpuTexto = table.getValueAt(FILA_CPU, column).toString();
-                        int numero = -1;
-
-                        if (cpuTexto.startsWith("CPU ")) {
-                                try {
-                                        numero = Integer.parseInt(cpuTexto.substring(4));
-                                } catch (NumberFormatException ignorado) {
-                                        // El proceso todavía puede estar sin CPU asignada.
-                                }
-                        }
-
-                        if (row == FILA_CPU && numero > 0) {
-                                // La fila de CPU identifica por color cada columna-proceso.
-                                componente.setBackground(colorCPU(numero));
-                                componente.setForeground(Color.WHITE);
-
-                        } else if (isSelected) {
-                                componente.setBackground(numero > 0
-                                                ? fondoCPU(numero).darker()
-                                                : AZUL_SUAVE);
-                                componente.setForeground(TEXTO);
-
-                        } else if (row == FILA_LLEGADA
-                                        && trabajos.isCellEditable(row, column)) {
-                                // El amarillo identifica la celda editable por doble clic.
-                                componente.setBackground(new Color(255, 248, 212));
-                                componente.setForeground(new Color(114, 77, 14));
-
-                        } else {
-                                componente.setBackground(numero > 0
-                                                ? fondoCPU(numero)
-                                                : GRIS_SUAVE);
-                                componente.setForeground(TEXTO);
-                        }
-
-                        setFont(table.getFont().deriveFont(
-                                        row == FILA_PID || row == FILA_CPU || row == FILA_LLEGADA
-                                                        || estadoProceso.equals("EJECUCION")
-                                                                        ? Font.BOLD
-                                                                        : Font.PLAIN));
-
-                        setToolTipText(row == FILA_LLEGADA
-                                        ? "Doble clic para editar la llegada antes de iniciar"
-                                        : "Proceso " + table.getValueAt(FILA_PID, column)
-                                                        + " asignado a " + cpuTexto);
-
-                        return componente;
-                }
-        }
-
-        /**
-         * Representa cada segundo ejecutado mediante una celda coloreada.
-         * Los colores se mantienen iguales a los de la lista de trabajos.
-         */
-        private class RenderizadorCronograma extends DefaultTableCellRenderer {
-
-                @Override
-                public Component getTableCellRendererComponent(
-                                JTable table, Object value, boolean isSelected,
-                                boolean hasFocus, int row, int column) {
-
-                        Component componente = super.getTableCellRendererComponent(
-                                        table, value, isSelected, hasFocus, row, column);
-
-                        setToolTipText(null);
-
-                        String etiqueta = String.valueOf(table.getValueAt(row, 0));
-                        int cpuId = 1;
-
-                        try {
-                                cpuId = Integer.parseInt(etiqueta.substring(4));
-                        } catch (RuntimeException ignorado) {
-                                // En ausencia de una CPU válida, usar el color inicial.
-                        }
-
-                        if (column == 0) {
-                                componente.setBackground(colorCPU(cpuId));
-                                componente.setForeground(Color.WHITE);
-                                setHorizontalAlignment(SwingConstants.CENTER);
-                                setFont(table.getFont().deriveFont(Font.BOLD));
-
-                        } else if (column == 1) {
-                                componente.setBackground(fondoCPU(cpuId));
-                                componente.setForeground(TEXTO);
-                                setHorizontalAlignment(SwingConstants.LEFT);
-                                setFont(table.getFont().deriveFont(Font.BOLD));
-
-                        } else {
-                                boolean ejecutado = "■".equals(value);
-
-                                componente.setBackground(ejecutado
-                                                ? colorCPU(cpuId)
-                                                : (row % 2 == 0 ? Color.WHITE : new Color(247, 249, 252)));
-                                componente.setForeground(ejecutado ? Color.WHITE : TEXTO);
-                                setHorizontalAlignment(SwingConstants.CENTER);
-                                setFont(table.getFont().deriveFont(Font.BOLD, 15f));
-
-                                setToolTipText("CPU " + cpuId + " · "
-                                                + table.getValueAt(row, 1) + " · segundo " + (column - 1)
-                                                + (ejecutado ? " · ejecutó 1 s" : " · no ejecutó"));
-                        }
-
-                        return componente;
-                }
-        }
-
-        // =========================================================
-        // RENDERIZADOR DE MEMORIA
-        // =========================================================
-
-        private class RenderizadorMemoria
-                        extends DefaultTableCellRenderer {
-
-                @Override
-                public Component getTableCellRendererComponent(
-                                JTable table,
-                                Object value,
-                                boolean isSelected,
-                                boolean hasFocus,
-                                int row,
-                                int column) {
-
-                        Component componente = super.getTableCellRendererComponent(
-                                        table,
-                                        value,
-                                        isSelected,
-                                        hasFocus,
-                                        row,
-                                        column);
-
-                        if (isSelected) {
-                                return componente;
-                        }
-
-                        String area = table.getValueAt(row, 1).toString();
-
-                        componente.setBackground(
-                                        area.equals("Kernel")
-                                                        ? MORADO_SUAVE
-                                                        : Color.WHITE);
-
-                        componente.setForeground(TEXTO);
-
-                        return componente;
-                }
-        }
-
-        // =========================================================
-        // RENDERIZADOR DE ALMACENAMIENTO
-        // =========================================================
-
-        private class RenderizadorAlmacenamiento
-                        extends DefaultTableCellRenderer {
-
-                @Override
-                public Component getTableCellRendererComponent(
-                                JTable table,
-                                Object value,
-                                boolean isSelected,
-                                boolean hasFocus,
-                                int row,
-                                int column) {
-
-                        Component componente = super.getTableCellRendererComponent(
-                                        table,
-                                        value,
-                                        isSelected,
-                                        hasFocus,
-                                        row,
-                                        column);
-
-                        if (isSelected) {
-                                return componente;
-                        }
-
-                        String area = table.getValueAt(row, 1).toString();
-
-                        if (area.equals("Índice")) {
-
-                                componente.setBackground(AZUL_SUAVE);
-
-                        } else if (area.equals("Virtual")) {
-
-                                componente.setBackground(MORADO_SUAVE);
-
-                        } else {
-
-                                componente.setBackground(Color.WHITE);
-                        }
-
-                        componente.setForeground(TEXTO);
-
-                        return componente;
-                }
-        }
+    }
 }
