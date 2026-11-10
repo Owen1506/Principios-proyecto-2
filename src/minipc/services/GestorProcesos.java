@@ -38,6 +38,7 @@ public class GestorProcesos {
     private int instanteSimulado;
     private BCP procesoActual;
     private Memoria memoria;
+    private boolean suspendido = false;
 
     /**
      * Crea el gestor de procesos.
@@ -491,6 +492,19 @@ public class GestorProcesos {
         return contarProcesosActivos();
     }
 
+    public boolean getSuspendido() {
+        return suspendido;
+    }
+
+    public void setSuspendido() {
+        if (!suspendido) {
+            suspendido = true;
+        } else {
+            suspendido = true;
+        }
+
+    }
+
     public void establecerInstanteSimulado(int instanteSimulado) {
 
         if (instanteSimulado < 0) {
@@ -501,7 +515,6 @@ public class GestorProcesos {
         this.instanteSimulado = instanteSimulado;
     }
 
-    
     public void prepararProcesosLlegados(int tiempoActual) {
 
         for (BCP proceso : listaTrabajos) {
