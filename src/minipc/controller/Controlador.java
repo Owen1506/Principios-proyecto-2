@@ -27,7 +27,9 @@ import minipc.services.FCFS;
 import minipc.services.GestorInterrupciones;
 import minipc.services.GestorMemoriaVirtual;
 import minipc.services.GestorProcesos;
+import minipc.services.RoundRobin;
 import minipc.services.SPN;
+import minipc.services.SRT;
 import minipc.services.SistemaArchivos;
 //import minipc.services.SRT;
 
@@ -114,11 +116,11 @@ public class Controlador {
 
             case SPN -> new SPN(gestorProcesos);
 
-            // case SRT -> new SRT(gestorProcesos);
+            case SRT -> new SRT(gestorProcesos);
 
-            // case RR -> new RoundRobin(
-            // gestorProcesos,
-            // quantumRR);
+            case RR -> new RoundRobin(
+                    gestorProcesos,
+                    quantumRR);
 
             default -> throw new UnsupportedOperationException(
                     "El algoritmo " + tipo
