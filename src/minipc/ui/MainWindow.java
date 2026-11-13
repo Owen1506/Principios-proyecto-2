@@ -143,7 +143,8 @@ public class MainWindow extends JFrame {
                     TipoAlgoritmo.SRT,
                     TipoAlgoritmo.HRRN,
                     TipoAlgoritmo.RR,
-                    TipoAlgoritmo.PRIORIDAD
+                    TipoAlgoritmo.PRIORIDAD,
+                    TipoAlgoritmo.SELFISH_ROUND_ROBIN
             });
 
     private final JSpinner quantumRR = new JSpinner(
@@ -738,6 +739,12 @@ public class MainWindow extends JFrame {
         almacenamiento.setEditor(new JSpinner.NumberEditor(almacenamiento, "0"));
         ram.setEnabled(editable);
         almacenamiento.setEnabled(editable);
+        JSpinner tasaA = new JSpinner(new SpinnerNumberModel(
+                controlador.getTasaEsperaSRR(), 1, 100000, 1));
+        JSpinner tasaB = new JSpinner(new SpinnerNumberModel(
+                controlador.getTasaServicioSRR(), 1, 100000, 1));
+        tasaA.setEnabled(editable);
+        tasaB.setEnabled(editable);
 
         JDialog ventana = new JDialog(this, "Configuración de la Mini PC", true);
         ventana.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
@@ -752,15 +759,19 @@ public class MainWindow extends JFrame {
         titulo.setForeground(TEXTO);
         contenido.add(titulo, BorderLayout.NORTH);
 
-        JPanel formulario = new JPanel(new GridLayout(5, 2, 10, 12));
+        JPanel formulario = new JPanel(new GridLayout(7, 2, 10, 12));
         formulario.setOpaque(false);
 
         formulario.add(new JLabel("Cantidad de CPU (1 a 5):"));
         formulario.add(cantidadCPU);
         formulario.add(new JLabel("Algoritmo de planificación:"));
         formulario.add(algoritmos);
-        formulario.add(new JLabel("Quantum RR (segundos):"));
+        formulario.add(new JLabel("Quantum RR/SRR (segundos):"));
         formulario.add(quantumRR);
+        formulario.add(new JLabel("SRR tasa espera a:"));
+        formulario.add(tasaA);
+        formulario.add(new JLabel("SRR tasa servicio b:"));
+        formulario.add(tasaB);
         formulario.add(new JLabel("RAM total (mínimo 500):"));
         formulario.add(ram);
         formulario.add(new JLabel("Almacenamiento (mínimo 500):"));
@@ -826,6 +837,11 @@ public class MainWindow extends JFrame {
                         "El almacenamiento");
                 int cpus = ((Number) cantidadCPU.getValue()).intValue();
                 int quantum = ((Number) quantumRR.getValue()).intValue();
+                int a = leerEntero(tasaA, "La tasa a");
+                int b = leerEntero(tasaB, "La tasa b");
+                if (b <= 0 || a <= b) {
+                    throw new IllegalArgumentException("Las tasas SRR deben cumplir 0 < b < a.");
+                }
 
                 Configuracion.validarRecursos(ramValor, discoValor, cpus);
 
@@ -860,6 +876,8 @@ public class MainWindow extends JFrame {
                     configuracion = nueva;
                     actualizar();
                 }
+                controlador.configurarTasasSRR(a, b);
+                actualizar();
 
                 ventana.dispose();
 
@@ -874,7 +892,7 @@ public class MainWindow extends JFrame {
 
         ventana.add(contenido, BorderLayout.CENTER);
         ventana.add(botones, BorderLayout.SOUTH);
-        ventana.setSize(620, 470);
+        ventana.setSize(620, 560);
         ventana.setLocationRelativeTo(this);
         ventana.setVisible(true);
 
@@ -2564,7 +2582,11 @@ public class MainWindow extends JFrame {
                         ? "sin seleccionar"
                         : controlador.getAlgoritmoSeleccionado().name()
                                 + (controlador.getAlgoritmoSeleccionado() == TipoAlgoritmo.RR
+                                        || controlador.getAlgoritmoSeleccionado() == TipoAlgoritmo.SELFISH_ROUND_ROBIN
                                         ? " · quantum " + controlador.getQuantumRR() + " s"
+                                        : "")
+                                + (controlador.getAlgoritmoSeleccionado() == TipoAlgoritmo.SELFISH_ROUND_ROBIN
+                                        ? " · a=" + controlador.getTasaEsperaSRR() + " b=" + controlador.getTasaServicioSRR()
                                         : "")));
 
         valorNucleos.setText(

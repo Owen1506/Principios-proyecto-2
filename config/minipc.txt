@@ -1,5 +1,5 @@
 # Posiciones simuladas de memoria y almacenamiento.
-# Algoritmo de planificación. Actualmente solo está implementado FCFS.
+# Algoritmo: FCFS, SPN, SRT, HRRN, RR, PRIORIDAD o SELFISH_ROUND_ROBIN.
 algoritmo=FCFS
 
 ram=256

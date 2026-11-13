@@ -30,6 +30,7 @@ import minipc.services.GestorProcesos;
 import minipc.services.HRRN;
 import minipc.services.Prioridad;
 import minipc.services.RoundRobin;
+import minipc.services.SelfishRoundRobin;
 import minipc.services.SPN;
 import minipc.services.SRT;
 import minipc.services.SistemaArchivos;
@@ -52,6 +53,8 @@ public class Controlador {
     private GestorMemoriaVirtual gestorMemoriaVirtual;
     private AlgoritmoPlanificacion planificador;
     private int quantumRR = 3;
+    private int tasaEsperaSRR = 2;
+    private int tasaServicioSRR = 1;
     private Despachador despachador;
     private SistemaArchivos sistemaArchivos;
     private GestorInterrupciones gestorInterrupciones;
@@ -123,6 +126,9 @@ public class Controlador {
             case HRRN -> new HRRN(gestorProcesos);
 
             case PRIORIDAD -> new Prioridad(gestorProcesos);
+
+            case SELFISH_ROUND_ROBIN -> new SelfishRoundRobin(
+                    gestorProcesos, quantumRR, tasaEsperaSRR, tasaServicioSRR);
 
             case RR -> new RoundRobin(
                     gestorProcesos,
@@ -310,6 +316,7 @@ public class Controlador {
         // Intentar recuperar procesos desde memoria virtual.
         intentarReactivarSuspendidos();
 
+        planificador.iniciarTick();
         // Todas las CPU ejecutan dentro del mismo segundo simulado.
         for (ContextoNucleo nucleo : nucleos) {
 
@@ -319,6 +326,8 @@ public class Controlador {
             // Registrar si estuvo ocupada u ociosa.
             nucleo.getCpu().registrarTick(ocupada);
         }
+
+        planificador.finalizarTick();
 
         // Verificar que ningún PID esté asignado a dos CPU.
         verificarProcesosEnCPU();
@@ -807,6 +816,14 @@ public class Controlador {
             if (proceso.getEstado() != EstadoProceso.FINALIZADO
                     && proceso.getCpuAsignada() == -1) {
 
+                /* ¿Qué hace? Intenta ocupar un cupo libre antes de detener la ejecución.
+                 * ¿Quién lo llama? El controlador al comprobar las asignaciones de cada tick. */
+                asignarSiHayCupo(proceso);
+            }
+
+            if (proceso.getEstado() != EstadoProceso.FINALIZADO
+                    && proceso.getCpuAsignada() == -1) {
+
                 throw new IllegalStateException(
                         "El proceso PID "
                                 + proceso.getPid()
@@ -841,9 +858,32 @@ public class Controlador {
 
         quantumRR = quantum;
 
-        if (algoritmoSeleccionado == TipoAlgoritmo.RR) {
+        if (algoritmoSeleccionado == TipoAlgoritmo.RR
+                || algoritmoSeleccionado == TipoAlgoritmo.SELFISH_ROUND_ROBIN) {
 
-            configurarAlgoritmo(TipoAlgoritmo.RR);
+            configurarAlgoritmo(algoritmoSeleccionado);
+        }
+    }
+
+    /* ¿Qué hace? Devuelve la tasa de espera de SRR. ¿Quién lo llama? Configuración para mostrarla. */
+    public int getTasaEsperaSRR() { return tasaEsperaSRR; }
+
+    /* ¿Qué hace? Devuelve la tasa de servicio de SRR. ¿Quién lo llama? Configuración para mostrarla. */
+    public int getTasaServicioSRR() { return tasaServicioSRR; }
+
+    /* ¿Qué hace? Cambia las tasas antes de iniciar. ¿Quién lo llama? La ventana de configuración. */
+    public void configurarTasasSRR(int espera, int servicio) {
+        if (servicio <= 0 || espera <= servicio) {
+            throw new IllegalArgumentException("Las tasas deben cumplir 0 < b < a.");
+        }
+        if (tiempoSimulado != 0 || gestorProcesos.getListaTrabajos().stream()
+                .anyMatch(proceso -> proceso.getHoraInicio() != null)) {
+            throw new IllegalStateException("No se pueden cambiar las tasas después de iniciar.");
+        }
+        tasaEsperaSRR = espera;
+        tasaServicioSRR = servicio;
+        if (algoritmoSeleccionado == TipoAlgoritmo.SELFISH_ROUND_ROBIN) {
+            configurarAlgoritmo(algoritmoSeleccionado);
         }
     }
 

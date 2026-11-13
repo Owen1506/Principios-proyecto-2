@@ -24,4 +24,12 @@ public interface AlgoritmoPlanificacion {
 
         //
     }
+
+    /* ¿Qué hace? Prepara las cuentas del segundo global. ¿Quién lo llama? El controlador antes de ejecutar las CPU. */
+    default void iniciarTick() {
+    }
+
+    /* ¿Qué hace? Cierra las cuentas del segundo global. ¿Quién lo llama? El controlador después de ejecutar las CPU. */
+    default void finalizarTick() {
+    }
 }
