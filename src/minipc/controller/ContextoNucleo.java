@@ -20,6 +20,23 @@ public final class ContextoNucleo {
     private final Executor executor;
 
     private Instruccion instruccionActual;
+    private int direccionUltimoTick = -1;
+    private int pidUltimoTick = -1;
+
+    /* ¿Qué hace? Recuerda dónde trabajó esta CPU en el último segundo. ¿Quién lo llama? El controlador antes de consumir el tick. */
+    public void registrarInstruccionTick(int direccion, int pid) {
+        direccionUltimoTick = direccion;
+        pidUltimoTick = pid;
+    }
+
+    /* ¿Qué hace? Borra la marca del segundo anterior. ¿Quién lo llama? El controlador y reiniciar(). */
+    public void limpiarInstruccionTick() { direccionUltimoTick = -1; pidUltimoTick = -1; }
+
+    /* ¿Qué hace? Devuelve la dirección usada en el último tick. ¿Quién lo llama? La vista de RAM. */
+    public int getDireccionUltimoTick() { return direccionUltimoTick; }
+
+    /* ¿Qué hace? Devuelve el dueño de la instrucción marcada. ¿Quién lo llama? La vista de RAM. */
+    public int getPidUltimoTick() { return pidUltimoTick; }
 
     private int ticksRestantes;
 
@@ -138,6 +155,7 @@ public final class ContextoNucleo {
 
     public void reiniciar() {
 
+        limpiarInstruccionTick();
         cpu.reiniciarCPU();
 
         cpu.reiniciarEstadisticas();

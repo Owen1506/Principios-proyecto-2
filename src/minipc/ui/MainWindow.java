@@ -143,7 +143,8 @@ public class MainWindow extends JFrame {
                     TipoAlgoritmo.SRT,
                     TipoAlgoritmo.HRRN,
                     TipoAlgoritmo.RR,
-                    TipoAlgoritmo.PRIORIDAD
+                    TipoAlgoritmo.PRIORIDAD,
+                    TipoAlgoritmo.SELFISH_ROUND_ROBIN
             });
 
     private final JSpinner quantumRR = new JSpinner(
@@ -206,10 +207,8 @@ public class MainWindow extends JFrame {
 
     private final JScrollPane scrollTarjetas = new JScrollPane(contenedorTarjetas);
 
-    private final JTextField buscarProcesos = new JTextField(14);
-
-    private final JCheckBox mostrarFinalizados =
-            new JCheckBox("Mostrar finalizados", true);
+    private final JPanel contenedorFinalizados = new JPanel();
+    private final JScrollPane scrollFinalizados = new JScrollPane(contenedorFinalizados);
 
     private final JLabel contadorProcesos = new JLabel("Sin procesos cargados");
 
@@ -320,8 +319,10 @@ public class MainWindow extends JFrame {
 
                 JOptionPane.showMessageDialog(
                         MainWindow.this,
-                        campo + " debe ser un entero "
-                                + "mayor o igual a cero.",
+                        fila == FILA_PRIORIDAD
+                                && controlador.getAlgoritmoSeleccionado() == TipoAlgoritmo.PRIORIDAD
+                                ? "La prioridad debe ser un entero entre 1 y 10."
+                                : campo + " debe ser un entero mayor o igual a cero.",
                         fila == FILA_LLEGADA
                                 ? "Llegada inválida"
                                 : "Prioridad inválida",
@@ -738,6 +739,16 @@ public class MainWindow extends JFrame {
         almacenamiento.setEditor(new JSpinner.NumberEditor(almacenamiento, "0"));
         ram.setEnabled(editable);
         almacenamiento.setEnabled(editable);
+        JSpinner tasaA = new JSpinner(new SpinnerNumberModel(
+                controlador.getTasaEsperaSRR(), 1, 100000, 1));
+        JSpinner tasaB = new JSpinner(new SpinnerNumberModel(
+                controlador.getTasaServicioSRR(), 1, 100000, 1));
+        tasaA.setEnabled(editable);
+        tasaB.setEnabled(editable);
+        JCheckBox expropiativo = new JCheckBox("Permitir expropiación",
+                controlador.isPrioridadExpropiativa());
+        expropiativo.setEnabled(editable);
+        expropiativo.setOpaque(false);
 
         JDialog ventana = new JDialog(this, "Configuración de la Mini PC", true);
         ventana.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
@@ -752,19 +763,35 @@ public class MainWindow extends JFrame {
         titulo.setForeground(TEXTO);
         contenido.add(titulo, BorderLayout.NORTH);
 
-        JPanel formulario = new JPanel(new GridLayout(5, 2, 10, 12));
+        JPanel formulario = new JPanel();
+        formulario.setLayout(new BoxLayout(formulario, BoxLayout.Y_AXIS));
         formulario.setOpaque(false);
 
-        formulario.add(new JLabel("Cantidad de CPU (1 a 5):"));
-        formulario.add(cantidadCPU);
-        formulario.add(new JLabel("Algoritmo de planificación:"));
-        formulario.add(algoritmos);
-        formulario.add(new JLabel("Quantum RR (segundos):"));
-        formulario.add(quantumRR);
-        formulario.add(new JLabel("RAM total (mínimo 500):"));
-        formulario.add(ram);
-        formulario.add(new JLabel("Almacenamiento (mínimo 500):"));
-        formulario.add(almacenamiento);
+        formulario.add(filaConfiguracion("Cantidad de CPU (1 a 5):", cantidadCPU));
+        formulario.add(filaConfiguracion("Algoritmo de planificación:", algoritmos));
+        JPanel filaModo = filaConfiguracion("Modo del algoritmo PRIORIDAD:", expropiativo);
+        JPanel filaQuantum = filaConfiguracion("Quantum RR/SRR (segundos):", quantumRR);
+        JPanel filaA = filaConfiguracion("SRR tasa espera a:", tasaA);
+        JPanel filaB = filaConfiguracion("SRR tasa servicio b:", tasaB);
+        formulario.add(filaModo);
+        formulario.add(filaQuantum);
+        formulario.add(filaA);
+        formulario.add(filaB);
+        formulario.add(filaConfiguracion("RAM total (mínimo 500):", ram));
+        formulario.add(filaConfiguracion("Almacenamiento (mínimo 500):", almacenamiento));
+        Runnable mostrarOpciones = () -> {
+            TipoAlgoritmo seleccionado = (TipoAlgoritmo) algoritmos.getSelectedItem();
+            filaModo.setVisible(seleccionado == TipoAlgoritmo.PRIORIDAD);
+            filaQuantum.setVisible(seleccionado == TipoAlgoritmo.RR
+                    || seleccionado == TipoAlgoritmo.SELFISH_ROUND_ROBIN);
+            filaA.setVisible(seleccionado == TipoAlgoritmo.SELFISH_ROUND_ROBIN);
+            filaB.setVisible(seleccionado == TipoAlgoritmo.SELFISH_ROUND_ROBIN);
+            formulario.revalidate();
+            formulario.repaint();
+        };
+        java.awt.event.ActionListener cambioAlgoritmo = e -> mostrarOpciones.run();
+        algoritmos.addActionListener(cambioAlgoritmo);
+        mostrarOpciones.run();
 
         JPanel centro = new JPanel(new BorderLayout(4, 12));
         centro.setOpaque(false);
@@ -826,6 +853,13 @@ public class MainWindow extends JFrame {
                         "El almacenamiento");
                 int cpus = ((Number) cantidadCPU.getValue()).intValue();
                 int quantum = ((Number) quantumRR.getValue()).intValue();
+                int a = seleccionadoAlgoritmo == TipoAlgoritmo.SELFISH_ROUND_ROBIN
+                        ? leerEntero(tasaA, "La tasa a") : controlador.getTasaEsperaSRR();
+                int b = seleccionadoAlgoritmo == TipoAlgoritmo.SELFISH_ROUND_ROBIN
+                        ? leerEntero(tasaB, "La tasa b") : controlador.getTasaServicioSRR();
+                if (b <= 0 || a <= b) {
+                    throw new IllegalArgumentException("Las tasas SRR deben cumplir 0 < b < a.");
+                }
 
                 Configuracion.validarRecursos(ramValor, discoValor, cpus);
 
@@ -860,6 +894,9 @@ public class MainWindow extends JFrame {
                     configuracion = nueva;
                     actualizar();
                 }
+                controlador.configurarTasasSRR(a, b);
+                controlador.configurarExpropiacionPrioridad(expropiativo.isSelected());
+                actualizar();
 
                 ventana.dispose();
 
@@ -874,11 +911,23 @@ public class MainWindow extends JFrame {
 
         ventana.add(contenido, BorderLayout.CENTER);
         ventana.add(botones, BorderLayout.SOUTH);
-        ventana.setSize(620, 470);
+        ventana.setSize(620, 610);
         ventana.setLocationRelativeTo(this);
         ventana.setVisible(true);
 
         cantidadCPU.removeChangeListener(escucharCambio);
+        algoritmos.removeActionListener(cambioAlgoritmo);
+    }
+
+    /* ¿Qué hace? Ordena una etiqueta con su control. ¿Quién lo llama? La ventana de configuración. */
+    private JPanel filaConfiguracion(String nombre, Component control) {
+        JPanel fila = new JPanel(new GridLayout(1, 2, 10, 0));
+        fila.setOpaque(false);
+        fila.setBorder(new EmptyBorder(0, 0, 10, 0));
+        fila.add(new JLabel(nombre));
+        fila.add(control);
+        fila.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
+        return fila;
     }
 
     /*
@@ -1097,31 +1146,9 @@ public class MainWindow extends JFrame {
 
         JPanel panel = panelSeccion("Procesos · Vista general");
 
-        JPanel filtros = new JPanel(new BorderLayout(8, 6));
-        filtros.setOpaque(false);
-
-        buscarProcesos.setToolTipText("Filtrar por PID o nombre de archivo ASM");
-        buscarProcesos.putClientProperty("JTextField.placeholderText", "Buscar PID o programa...");
-
-        JLabel buscar = new JLabel("Buscar:");
-        buscar.setForeground(TEXTO_SECUNDARIO);
-
-        JPanel busqueda = new JPanel(new BorderLayout(6, 0));
-        busqueda.setOpaque(false);
-        busqueda.add(buscar, BorderLayout.WEST);
-        busqueda.add(buscarProcesos, BorderLayout.CENTER);
-
-        mostrarFinalizados.setOpaque(false);
-        mostrarFinalizados.setFont(fuenteInterfaz(Font.PLAIN, 11f));
-
         contadorProcesos.setForeground(TEXTO_SECUNDARIO);
         contadorProcesos.setFont(fuenteInterfaz(Font.PLAIN, 11f));
-
-        filtros.add(busqueda, BorderLayout.CENTER);
-        filtros.add(mostrarFinalizados, BorderLayout.EAST);
-        filtros.add(contadorProcesos, BorderLayout.SOUTH);
-
-        panel.add(filtros, BorderLayout.NORTH);
+        panel.add(contadorProcesos, BorderLayout.NORTH);
 
         contenedorTarjetas.setLayout(new BoxLayout(contenedorTarjetas, BoxLayout.Y_AXIS));
         contenedorTarjetas.setBackground(new Color(247, 249, 252));
@@ -1132,7 +1159,16 @@ public class MainWindow extends JFrame {
         scrollTarjetas.setHorizontalScrollBarPolicy(
                 ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
 
-        panel.add(scrollTarjetas, BorderLayout.CENTER);
+        contenedorFinalizados.setLayout(new BoxLayout(contenedorFinalizados, BoxLayout.Y_AXIS));
+        contenedorFinalizados.setBackground(new Color(247, 249, 252));
+        contenedorFinalizados.setBorder(new EmptyBorder(8, 8, 8, 8));
+        scrollFinalizados.setBorder(BorderFactory.createLineBorder(BORDE));
+        scrollFinalizados.getVerticalScrollBar().setUnitIncrement(24);
+        scrollFinalizados.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        JTabbedPane estados = new JTabbedPane();
+        estados.addTab("En curso", scrollTarjetas);
+        estados.addTab("Finalizados", scrollFinalizados);
+        panel.add(estados, BorderLayout.CENTER);
 
         return panel;
     }
@@ -1175,11 +1211,14 @@ public class MainWindow extends JFrame {
         int desplazamiento = scrollTarjetas.getVerticalScrollBar().getValue();
 
         contenedorTarjetas.removeAll();
+        contenedorFinalizados.removeAll();
 
         if (controlador == null) {
             contadorProcesos.setText("Sin procesos cargados");
             contenedorTarjetas.revalidate();
             contenedorTarjetas.repaint();
+            contenedorFinalizados.revalidate();
+            contenedorFinalizados.repaint();
             return;
         }
 
@@ -1193,7 +1232,6 @@ public class MainWindow extends JFrame {
                     ? comparacion : Integer.compare(a.getPid(), b.getPid());
         });
 
-        String filtro = buscarProcesos.getText().trim().toLowerCase(java.util.Locale.ROOT);
         int visibles = 0;
         int finalizados = 0;
 
@@ -1213,11 +1251,6 @@ public class MainWindow extends JFrame {
                 EstadoProceso.FINALIZADO
         }) {
 
-            if (estado == EstadoProceso.FINALIZADO
-                    && !mostrarFinalizados.isSelected()) {
-                continue;
-            }
-
             java.util.List<BCP> grupo = new java.util.ArrayList<>();
 
             for (BCP proceso : procesos) {
@@ -1225,14 +1258,7 @@ public class MainWindow extends JFrame {
                     continue;
                 }
 
-                String nombre = nombres.getOrDefault(proceso.getPid(), "");
-                String consulta = ("pid " + proceso.getPid() + " " + nombre
-                        + " " + proceso.getEstado()).toLowerCase(java.util.Locale.ROOT);
-
-                if (filtro.isEmpty() || consulta.contains(filtro)
-                        || Integer.toString(proceso.getPid()).equals(filtro)) {
-                    grupo.add(proceso);
-                }
+                grupo.add(proceso);
             }
 
             if (grupo.isEmpty()) {
@@ -1264,15 +1290,17 @@ public class MainWindow extends JFrame {
             seccion.setMaximumSize(new Dimension(Integer.MAX_VALUE,
                     seccion.getPreferredSize().height));
 
-            contenedorTarjetas.add(seccion);
-            contenedorTarjetas.add(Box.createVerticalStrut(12));
+            JPanel destino = estado == EstadoProceso.FINALIZADO
+                    ? contenedorFinalizados : contenedorTarjetas;
+            destino.add(seccion);
+            destino.add(Box.createVerticalStrut(12));
         }
 
         contadorProcesos.setText(procesos.size() + " procesos · "
                 + visibles + " visibles · " + finalizados + " finalizados");
 
         if (visibles == 0) {
-            JLabel vacio = new JLabel("No hay procesos con ese filtro.");
+            JLabel vacio = new JLabel("No hay procesos cargados.");
             vacio.setForeground(TEXTO_SECUNDARIO);
             vacio.setBorder(new EmptyBorder(15, 10, 15, 10));
             vacio.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -1281,6 +1309,8 @@ public class MainWindow extends JFrame {
 
         contenedorTarjetas.revalidate();
         contenedorTarjetas.repaint();
+        contenedorFinalizados.revalidate();
+        contenedorFinalizados.repaint();
 
         SwingUtilities.invokeLater(() -> scrollTarjetas.getVerticalScrollBar()
                 .setValue(desplazamiento));
@@ -1290,6 +1320,24 @@ public class MainWindow extends JFrame {
      * Crea una tarjeta compacta con PID, CPU, estado, ráfaga y llegada.
      * Incluye acceso al BCP sin desplazar horizontalmente una tabla.
      */
+    /* ¿Qué hace? Dice si el algoritmo usa el campo de prioridad. ¿Quién lo llama? Las vistas de procesos. */
+    private boolean usaPrioridad() {
+        if (controlador == null) return false;
+        TipoAlgoritmo tipo = controlador.getAlgoritmoSeleccionado();
+        return tipo == TipoAlgoritmo.PRIORIDAD || tipo == TipoAlgoritmo.SELFISH_ROUND_ROBIN;
+    }
+
+    /* ¿Qué hace? Pone nombre visible al campo de una tarjeta. ¿Quién lo llama? crearTarjetaProceso(). */
+    private JPanel filaDatoProceso(String texto, JSpinner valor) {
+        JPanel fila = new JPanel(new BorderLayout(4, 0));
+        fila.setOpaque(false);
+        JLabel etiqueta = new JLabel(texto);
+        etiqueta.setFont(fuenteInterfaz(Font.PLAIN, 11f));
+        fila.add(etiqueta, BorderLayout.WEST);
+        fila.add(valor, BorderLayout.CENTER);
+        return fila;
+    }
+
     private JPanel crearTarjetaProceso(BCP proceso) {
 
         int cpuId = proceso.getCpuAsignada();
@@ -1350,7 +1398,8 @@ public class MainWindow extends JFrame {
                 && proceso.getEstado() == EstadoProceso.NUEVO
                 && !continuarAutomatico;
 
-        JPanel datosEdicion = new JPanel(new GridLayout(2, 1, 0, 3));
+        boolean usaPrioridad = usaPrioridad();
+        JPanel datosEdicion = new JPanel(new GridLayout(usaPrioridad ? 2 : 1, 1, 0, 3));
         datosEdicion.setOpaque(false);
 
         if (editable) {
@@ -1368,11 +1417,18 @@ public class MainWindow extends JFrame {
                 }
             });
 
-            JSpinner prioridad = new JSpinner(new SpinnerNumberModel(
-                    proceso.getPrioridad(), 0, 100000, 1));
-            prioridad.setToolTipText("Editar prioridad de este proceso");
-            prioridad.setPreferredSize(new Dimension(90, 29));
-            prioridad.addChangeListener(e -> {
+            datosEdicion.add(filaDatoProceso("Llegada:", llegada));
+
+            if (usaPrioridad) {
+                boolean prioridadEstatica = controlador.getAlgoritmoSeleccionado() == TipoAlgoritmo.PRIORIDAD;
+                JSpinner prioridad = new JSpinner(new SpinnerNumberModel(
+                    proceso.getPrioridad(), prioridadEstatica ? 1 : 0,
+                    prioridadEstatica ? 10 : 100000, 1));
+                prioridad.setToolTipText(prioridadEstatica
+                    ? "Prioridad de 1 (mayor) a 10 (menor)"
+                    : "Editar prioridad de este proceso");
+                prioridad.setPreferredSize(new Dimension(70, 29));
+                prioridad.addChangeListener(e -> {
                 try {
                     controlador.configurarPrioridad(proceso.getPid(),
                             (Integer) prioridad.getValue());
@@ -1380,10 +1436,9 @@ public class MainWindow extends JFrame {
                 } catch (RuntimeException error) {
                     mostrarError(error);
                 }
-            });
-
-            datosEdicion.add(llegada);
-            datosEdicion.add(prioridad);
+                });
+                datosEdicion.add(filaDatoProceso("Prioridad:", prioridad));
+            }
         } else {
             JLabel llegada = new JLabel("Llegada: "
                     + proceso.getTiempoLlegada() + " s");
@@ -1396,7 +1451,7 @@ public class MainWindow extends JFrame {
             prioridad.setForeground(TEXTO_SECUNDARIO);
 
             datosEdicion.add(llegada);
-            datosEdicion.add(prioridad);
+            if (usaPrioridad) datosEdicion.add(prioridad);
         }
 
         inferior.add(datosEdicion, BorderLayout.WEST);
@@ -2224,26 +2279,6 @@ public class MainWindow extends JFrame {
         cpuAnterior.addActionListener(e -> cambiarCPUVisible(-1));
         cpuSiguiente.addActionListener(e -> cambiarCPUVisible(1));
 
-        // La búsqueda filtra directamente las tarjetas visibles sin alterar los BCP.
-        buscarProcesos.getDocument().addDocumentListener(
-                new javax.swing.event.DocumentListener() {
-                    @Override
-                    public void insertUpdate(javax.swing.event.DocumentEvent e) {
-                        actualizarTarjetasProcesos();
-                    }
-
-                    @Override
-                    public void removeUpdate(javax.swing.event.DocumentEvent e) {
-                        actualizarTarjetasProcesos();
-                    }
-
-                    @Override
-                    public void changedUpdate(javax.swing.event.DocumentEvent e) {
-                        actualizarTarjetasProcesos();
-                    }
-                });
-        mostrarFinalizados.addActionListener(e -> actualizarTarjetasProcesos());
-
         // Cada columna de la matriz transpuesta corresponde a un PID.
         tablaTrabajos.getColumnModel().getSelectionModel()
                 .addListSelectionListener(e -> {
@@ -2392,10 +2427,18 @@ public class MainWindow extends JFrame {
 
     private void elegirProgramaDisco() {
 
-        String nombre = JOptionPane.showInputDialog(
-                this,
-                "Nombre del programa guardado "
-                        + "en el disco simulado:");
+        java.util.List<String> programas = new java.util.ArrayList<>();
+        for (ArchivoSimulado archivo : controlador.getAlmacenamiento().listarArchivos()) {
+            if (archivo.esPrograma()) programas.add(archivo.getNombre());
+        }
+        if (programas.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "No hay programas ASM en el disco simulado.",
+                    "Ejecutar desde disco", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        String nombre = (String) JOptionPane.showInputDialog(this,
+                "Seleccione un programa del disco simulado:", "Ejecutar desde disco",
+                JOptionPane.QUESTION_MESSAGE, null, programas.toArray(new String[0]), programas.get(0));
 
         if (nombre == null) {
             return;
@@ -2564,7 +2607,11 @@ public class MainWindow extends JFrame {
                         ? "sin seleccionar"
                         : controlador.getAlgoritmoSeleccionado().name()
                                 + (controlador.getAlgoritmoSeleccionado() == TipoAlgoritmo.RR
+                                        || controlador.getAlgoritmoSeleccionado() == TipoAlgoritmo.SELFISH_ROUND_ROBIN
                                         ? " · quantum " + controlador.getQuantumRR() + " s"
+                                        : "")
+                                + (controlador.getAlgoritmoSeleccionado() == TipoAlgoritmo.SELFISH_ROUND_ROBIN
+                                        ? " · a=" + controlador.getTasaEsperaSRR() + " b=" + controlador.getTasaServicioSRR()
                                         : "")));
 
         valorNucleos.setText(
@@ -2834,6 +2881,19 @@ public class MainWindow extends JFrame {
                     .append("\n\n\n");
 
         }
+
+        javax.swing.table.TableRowSorter<DefaultTableModel> filtroFilas =
+                new javax.swing.table.TableRowSorter<>(trabajos);
+        for (int columna = 0; columna < trabajos.getColumnCount(); columna++) {
+            filtroFilas.setSortable(columna, false);
+        }
+        filtroFilas.setRowFilter(new javax.swing.RowFilter<DefaultTableModel, Integer>() {
+            @Override
+            public boolean include(Entry<? extends DefaultTableModel, ? extends Integer> entrada) {
+                return entrada.getIdentifier() != FILA_PRIORIDAD || usaPrioridad();
+            }
+        });
+        tablaTrabajos.setRowSorter(filtroFilas);
 
         // Restaurar tamaños y selección después de recrear las columnas.
         tablaTrabajos.getColumnModel().getColumn(0).setPreferredWidth(150);
@@ -3174,6 +3234,7 @@ public class MainWindow extends JFrame {
                 cpuSeleccionada - 1 + desplazamiento, cantidad) + 1;
 
         actualizarCPUSeleccionada();
+        tablaRam.repaint();
     }
 
     // =========================================================
@@ -3260,6 +3321,7 @@ public class MainWindow extends JFrame {
 
         tiempoOcupadoCPU.setText(cpuSeleccionada.getTiempoOcupado() + " s");
         tiempoOciosoCPU.setText(cpuSeleccionada.getTiempoOcioso() + " s");
+        tablaRam.repaint();
     }
 
     // =========================================================
@@ -3457,6 +3519,8 @@ public class MainWindow extends JFrame {
                     row,
                     column);
 
+            row = table.convertRowIndexToModel(row);
+
             if (column == 0) {
                 componente.setBackground(new Color(230, 236, 245));
                 componente.setForeground(TEXTO);
@@ -3599,6 +3663,20 @@ public class MainWindow extends JFrame {
                     row,
                     column);
 
+            int direccion = Integer.parseInt(table.getValueAt(row, 0).toString());
+            if (controlador != null && cpuSeleccionada >= 1
+                    && cpuSeleccionada <= controlador.getCantidadCPU()) {
+                ContextoNucleo nucleo = controlador.getNucleos().get(cpuSeleccionada - 1);
+                BCP actual = controlador.getProcesoActual(cpuSeleccionada);
+                if (actual != null && actual.getPid() == nucleo.getPidUltimoTick()
+                        && nucleo.getDireccionUltimoTick() == direccion) {
+                    componente.setBackground(colorCPU(cpuSeleccionada));
+                    componente.setForeground(Color.WHITE);
+                    setToolTipText("Instrucción del último tick en CPU " + cpuSeleccionada);
+                    return componente;
+                }
+            }
+            setToolTipText(null);
             if (isSelected) {
                 return componente;
             }

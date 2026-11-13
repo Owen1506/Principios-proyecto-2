@@ -42,7 +42,7 @@ estadísticas de ejecución.
 - **Configuración en la interfaz:** CPU, algoritmo, quantum, RAM y almacenamiento
   se editan en la ventana **Configuración**. RAM y almacenamiento son enteros con
   mínimo 500 y el kernel se calcula automáticamente. Los algoritmos disponibles
-  son **FCFS**, **SPN**, **SRT**, **HRRN**, **RR** y **PRIORIDAD**.
+  son **FCFS**, **SPN**, **SRT**, **HRRN**, **RR**, **PRIORIDAD** y **SELFISH_ROUND_ROBIN**.
 - **Estadísticas por proceso:** inicio y fin en formato HH:mm, tiempo simulado de
   CPU en segundos, duración real, contexto y resultado de la ejecución.
 - **Protección y errores de ejecución:** los saltos fuera de rango y los errores
@@ -95,6 +95,16 @@ El archivo [`config/minipc.txt`](config/minipc.txt) se conserva únicamente por
 compatibilidad con `Controlador(Path)`; la interfaz ya no lo lee.
 
 ## Planificación por prioridad
+
+**Selfish Round Robin (SRR)** es un algoritmo separado de PRIORIDAD: por cada
+CPU los procesos admitidos comparten turnos de tamaño quantum. Los que esperan
+fuera del grupo aumentan su prioridad a razón `a` por tick; los admitidos,
+incluidos los que esperan su turno, aumentan a razón `b`. Cuando un proceso
+alcanza la prioridad del grupo, se incorpora a sus turnos. Configure `a` y `b`
+en la ventana de configuración, con `0 < b < a` (por defecto 2 y 1).
+La prioridad configurada es el valor inicial; los procesos bloqueados o
+suspendidos conservan su prioridad sin aumentarla. Referencia: Stallings,
+9.ª edición, problema 9.12 y figura 9.19, página 458.
 
 El algoritmo **PRIORIDAD** usa un número mayor como mayor prioridad. La prioridad
 se edita por proceso en la fila `Prioridad ✎` de la tabla o en el spinner de su

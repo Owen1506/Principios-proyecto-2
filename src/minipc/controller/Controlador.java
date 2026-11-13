@@ -30,6 +30,7 @@ import minipc.services.GestorProcesos;
 import minipc.services.HRRN;
 import minipc.services.Prioridad;
 import minipc.services.RoundRobin;
+import minipc.services.SelfishRoundRobin;
 import minipc.services.SPN;
 import minipc.services.SRT;
 import minipc.services.SistemaArchivos;
@@ -52,6 +53,9 @@ public class Controlador {
     private GestorMemoriaVirtual gestorMemoriaVirtual;
     private AlgoritmoPlanificacion planificador;
     private int quantumRR = 3;
+    private boolean prioridadExpropiativa = true;
+    private int tasaEsperaSRR = 2;
+    private int tasaServicioSRR = 1;
     private Despachador despachador;
     private SistemaArchivos sistemaArchivos;
     private GestorInterrupciones gestorInterrupciones;
@@ -122,7 +126,10 @@ public class Controlador {
 
             case HRRN -> new HRRN(gestorProcesos);
 
-            case PRIORIDAD -> new Prioridad(gestorProcesos);
+            case PRIORIDAD -> new Prioridad(gestorProcesos, prioridadExpropiativa);
+
+            case SELFISH_ROUND_ROBIN -> new SelfishRoundRobin(
+                    gestorProcesos, quantumRR, tasaEsperaSRR, tasaServicioSRR);
 
             case RR -> new RoundRobin(
                     gestorProcesos,
@@ -179,7 +186,7 @@ public class Controlador {
     }
 
     public BCP cargarPrograma(List<Instruccion> programa) {
-        return cargarPrograma(programa, 0);
+        return cargarPrograma(programa, prioridadPredeterminada());
     }
 
     /**
@@ -200,11 +207,11 @@ public class Controlador {
         if (!errores.isEmpty()) {
             throw new IllegalArgumentException(archivo.getFileName() + ":\n" + String.join("\n", errores));
         }
-        return cargarPrograma(archivo.getFileName().toString(), new ASMParser().parsear(lineas), 0);
+        return cargarPrograma(archivo.getFileName().toString(), new ASMParser().parsear(lineas), prioridadPredeterminada());
     }
 
     public BCP cargarPrograma(String nombre, List<Instruccion> programa) {
-        return cargarPrograma(nombre, programa, 0);
+        return cargarPrograma(nombre, programa, prioridadPredeterminada());
     }
 
     /** Una admisión fallida deshace también la nueva copia en disco. */
@@ -219,7 +226,7 @@ public class Controlador {
     }
 
     public BCP cargarProgramaDesdeDisco(String nombre) {
-        return cargarProgramaDesdeDisco(nombre, 0);
+        return cargarProgramaDesdeDisco(nombre, prioridadPredeterminada());
     }
 
     /** Permite volver a ejecutar un programa sin duplicar su copia en disco. */
@@ -228,6 +235,7 @@ public class Controlador {
     }
 
     private BCP admitirPrograma(List<Instruccion> programa, int prioridad) {
+        validarPrioridad(prioridad);
         if (tiempoSimulado > 0) {
 
             int procesosAsignados = 0;
@@ -310,15 +318,19 @@ public class Controlador {
         // Intentar recuperar procesos desde memoria virtual.
         intentarReactivarSuspendidos();
 
+        planificador.iniciarTick();
         // Todas las CPU ejecutan dentro del mismo segundo simulado.
         for (ContextoNucleo nucleo : nucleos) {
 
             // Ejecutar un paso de esta CPU.
+            nucleo.limpiarInstruccionTick();
             boolean ocupada = ejecutarPasoCPU(nucleo);
 
             // Registrar si estuvo ocupada u ociosa.
             nucleo.getCpu().registrarTick(ocupada);
         }
+
+        planificador.finalizarTick();
 
         // Verificar que ningún PID esté asignado a dos CPU.
         verificarProcesosEnCPU();
@@ -467,6 +479,7 @@ public class Controlador {
             procesador.setIR(instruccion.getTextoOriginal());
         }
 
+        nucleo.registrarInstruccionTick(procesador.getPC(), proceso.getPid());
         gestorProcesos.incrementarTiempoCPU(cpuId);
         planificador.alConsumirTick(cpuId, proceso);
         nucleo.setTicksRestantes(
@@ -693,6 +706,19 @@ public class Controlador {
             }
         }
 
+        if (algoritmo == TipoAlgoritmo.PRIORIDAD) {
+            for (BCP proceso : gestorProcesos.getListaTrabajos()) {
+                if (proceso.getEstado() != EstadoProceso.FINALIZADO && proceso.getPrioridad() > 10) {
+                    throw new IllegalArgumentException("La prioridad del PID " + proceso.getPid()
+                            + " debe estar entre 1 y 10 antes de seleccionar PRIORIDAD.");
+                }
+            }
+            for (BCP proceso : gestorProcesos.getListaTrabajos()) {
+                if (proceso.getEstado() != EstadoProceso.FINALIZADO && proceso.getPrioridad() == 0) {
+                    proceso.setPrioridad(1);
+                }
+            }
+        }
         AlgoritmoPlanificacion nuevo = crearPlanificador(algoritmo);
         this.planificador = nuevo;
 
@@ -725,15 +751,12 @@ public class Controlador {
     /*
      * ¿Qué hace? Cambia la prioridad de un proceso antes de que empiece a
      * ejecutarse. Usa las mismas reglas que el tiempo de llegada: entero
-     * mayor o igual a cero y el proceso debe existir.
+     * del rango permitido para el algoritmo y el proceso debe existir.
      * ¿Quién lo llama? La tabla y las tarjetas de procesos de MainWindow.
      */
     public void configurarPrioridad(int pid, int prioridad) {
 
-        if (prioridad < 0) {
-            throw new IllegalArgumentException(
-                    "La prioridad no puede ser negativa.");
-        }
+        validarPrioridad(prioridad);
 
         BCP proceso = gestorProcesos.buscarProceso(pid);
 
@@ -742,7 +765,39 @@ public class Controlador {
                     "No existe el proceso " + pid);
         }
 
+        if (tiempoSimulado != 0 || proceso.getEstado() != EstadoProceso.NUEVO) {
+            throw new IllegalStateException("La prioridad solo se modifica antes de iniciar y en estado NUEVO.");
+        }
         proceso.setPrioridad(prioridad);
+    }
+
+    /* ¿Qué hace? Escoge el valor inicial adecuado. ¿Quién lo llama? Las cargas sin prioridad explícita. */
+    private int prioridadPredeterminada() {
+        return algoritmoSeleccionado == TipoAlgoritmo.PRIORIDAD ? 1 : 0;
+    }
+
+    /* ¿Qué hace? Revisa el rango sin cambiar las reglas de SRR. ¿Quién lo llama? La carga y la edición de prioridad. */
+    private void validarPrioridad(int prioridad) {
+        if (algoritmoSeleccionado == TipoAlgoritmo.PRIORIDAD) {
+            if (prioridad < 1 || prioridad > 10) {
+                throw new IllegalArgumentException("La prioridad debe estar entre 1 y 10.");
+            }
+        } else if (prioridad < 0) {
+            throw new IllegalArgumentException("La prioridad no puede ser negativa.");
+        }
+    }
+
+    /* ¿Qué hace? Indica si prioridad puede interrumpir. ¿Quién lo llama? La configuración de la interfaz. */
+    public boolean isPrioridadExpropiativa() { return prioridadExpropiativa; }
+
+    /* ¿Qué hace? Elige el modo antes de arrancar. ¿Quién lo llama? La configuración de la interfaz. */
+    public void configurarExpropiacionPrioridad(boolean expropia) {
+        if (tiempoSimulado != 0 || gestorProcesos.getListaTrabajos().stream()
+                .anyMatch(p -> p.getHoraInicio() != null)) {
+            throw new IllegalStateException("No se puede cambiar el modo después de iniciar.");
+        }
+        prioridadExpropiativa = expropia;
+        if (planificador instanceof Prioridad prioridad) prioridad.setExpropia(expropia);
     }
 
     public void configurarCantidadCPU(int cantidad) {
@@ -807,6 +862,14 @@ public class Controlador {
             if (proceso.getEstado() != EstadoProceso.FINALIZADO
                     && proceso.getCpuAsignada() == -1) {
 
+                /* ¿Qué hace? Intenta ocupar un cupo libre antes de detener la ejecución.
+                 * ¿Quién lo llama? El controlador al comprobar las asignaciones de cada tick. */
+                asignarSiHayCupo(proceso);
+            }
+
+            if (proceso.getEstado() != EstadoProceso.FINALIZADO
+                    && proceso.getCpuAsignada() == -1) {
+
                 throw new IllegalStateException(
                         "El proceso PID "
                                 + proceso.getPid()
@@ -841,9 +904,32 @@ public class Controlador {
 
         quantumRR = quantum;
 
-        if (algoritmoSeleccionado == TipoAlgoritmo.RR) {
+        if (algoritmoSeleccionado == TipoAlgoritmo.RR
+                || algoritmoSeleccionado == TipoAlgoritmo.SELFISH_ROUND_ROBIN) {
 
-            configurarAlgoritmo(TipoAlgoritmo.RR);
+            configurarAlgoritmo(algoritmoSeleccionado);
+        }
+    }
+
+    /* ¿Qué hace? Devuelve la tasa de espera de SRR. ¿Quién lo llama? Configuración para mostrarla. */
+    public int getTasaEsperaSRR() { return tasaEsperaSRR; }
+
+    /* ¿Qué hace? Devuelve la tasa de servicio de SRR. ¿Quién lo llama? Configuración para mostrarla. */
+    public int getTasaServicioSRR() { return tasaServicioSRR; }
+
+    /* ¿Qué hace? Cambia las tasas antes de iniciar. ¿Quién lo llama? La ventana de configuración. */
+    public void configurarTasasSRR(int espera, int servicio) {
+        if (servicio <= 0 || espera <= servicio) {
+            throw new IllegalArgumentException("Las tasas deben cumplir 0 < b < a.");
+        }
+        if (tiempoSimulado != 0 || gestorProcesos.getListaTrabajos().stream()
+                .anyMatch(proceso -> proceso.getHoraInicio() != null)) {
+            throw new IllegalStateException("No se pueden cambiar las tasas después de iniciar.");
+        }
+        tasaEsperaSRR = espera;
+        tasaServicioSRR = servicio;
+        if (algoritmoSeleccionado == TipoAlgoritmo.SELFISH_ROUND_ROBIN) {
+            configurarAlgoritmo(algoritmoSeleccionado);
         }
     }
 

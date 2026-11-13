@@ -4,23 +4,6 @@ import minipc.model.AlgoritmoPlanificacion;
 import minipc.model.BCP;
 import minipc.model.EstadoProceso;
 
-/**
- * Planificador por prioridad estática.
- *
- * Fundamentación:
- *
- * - Silberschatz, "Operating System Concepts", 10.ª edición, cap. 5,
- *   §5.3.4: la CPU se asigna al proceso de mayor prioridad. Las prioridades
- *   iguales se atienden por FCFS.
- *
- * - Stallings, "Operating Systems: Internals and Design Principles",
- *   9.ª edición, cap. 9: la planificación por prioridad puede ser expulsiva
- *   o no expulsiva. En este simulador se usa un número mayor como mayor
- *   prioridad y la expulsión se controla con la variable {@code expropia}.
- *
- * No se aplica envejecimiento (aging): la prioridad de cada proceso se
- * mantiene fija durante toda la simulación.
- */
 public class Prioridad implements AlgoritmoPlanificacion {
 
     private final GestorProcesos gestorProcesos;
@@ -31,7 +14,7 @@ public class Prioridad implements AlgoritmoPlanificacion {
      * ¿Quién lo llama? debeExpropiar() para decidir si interrumpe el ciclo
      * actual; setExpropia() permite cambiarlo sin recompilar.
      */
-    private boolean expropia = false;
+    private boolean expropia = true;
 
     public Prioridad(GestorProcesos gestorProcesos) {
         this(gestorProcesos, true);
@@ -85,7 +68,7 @@ public class Prioridad implements AlgoritmoPlanificacion {
             }
 
             if (elegido == null
-                    || candidato.getPrioridad() > elegido.getPrioridad()
+                    || candidato.getPrioridad() < elegido.getPrioridad()
                     || (candidato.getPrioridad() == elegido.getPrioridad()
                             && esMejorDesempate(candidato, elegido))) {
 
@@ -112,7 +95,7 @@ public class Prioridad implements AlgoritmoPlanificacion {
         BCP siguiente = seleccionarSiguiente(cpuId);
 
         return siguiente != null
-                && siguiente.getPrioridad() > actual.getPrioridad();
+                && siguiente.getPrioridad() < actual.getPrioridad();
     }
 
     /*
