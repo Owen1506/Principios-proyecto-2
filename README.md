@@ -25,8 +25,9 @@ estadísticas de ejecución.
   Las instrucciones consumen el tiempo correspondiente a su peso.
 - **Administración de procesos:** identificación por PID, BCP, estados del proceso,
   planificación FCFS y almacenamiento/restauración del contexto de CPU.
-- **Límite de RAM:** hasta cinco procesos simultáneos en memoria principal,
-  incluidos los bloqueados.
+- **Límite de RAM:** los BCP se alojan según el kernel calculado; el objetivo es
+  cinco procesos activos por CPU (máximo 25) y siempre se reservan 128 posiciones
+  para las instrucciones.
 - **Memoria principal y kernel:** división fija configurada al inicio y visualización
   de los atributos del BCP, uno por posición del kernel.
 - **Memoria virtual:** admisión de programas en estado `PREPARADO_SUSPENDIDO`
@@ -38,9 +39,10 @@ estadísticas de ejecución.
   `INT 21H`, con control de archivos abiertos por proceso.
 - **Entrada y salida:** teclado mediante `INT 09H`, pantalla mediante `INT 10H`
   y finalización mediante `INT 20H`.
-- **Configuración externa:** archivo TXT para los tamaños de memoria y
-  almacenamiento, partición de kernel, límites de procesos y algoritmo. El
-  algoritmo disponible actualmente es **FCFS**.
+- **Configuración en la interfaz:** CPU, algoritmo, quantum, RAM y almacenamiento
+  se editan en la ventana **Configuración**. RAM y almacenamiento son enteros con
+  mínimo 500 y el kernel se calcula automáticamente. Los algoritmos disponibles
+  son **FCFS**, **SPN**, **SRT**, **HRRN**, **RR** y **PRIORIDAD**.
 - **Estadísticas por proceso:** inicio y fin en formato HH:mm, tiempo simulado de
   CPU en segundos, duración real, contexto y resultado de la ejecución.
 - **Protección y errores de ejecución:** los saltos fuera de rango y los errores
@@ -62,39 +64,56 @@ estadísticas de ejecución.
 
 ## Configuración y capacidad del kernel
 
-La configuración inicial se encuentra en [`config/minipc.txt`](config/minipc.txt):
+La RAM y el almacenamiento se escriben en la ventana **Configuración** como
+enteros mayores o iguales a **500**. El kernel se calcula al aplicar los cambios:
 
-```txt
-algoritmo=FCFS
-ram=256
-almacenamiento=512
-memoriaVirtual=64
-indice=10
-inicioUsuario=128
-maxProcesosEnRam=5
-maxProcesos=20
-conservarArchivosAlReiniciar=true
+```text
+BCP                   = 24 posiciones
+reserva instrucciones = 128 posiciones
+bcpDeseados           = 5 × CPU
+bcpPorRam             = (RAM − 128) / 24
+bcpReales             = min(bcpDeseados, bcpPorRam)
+kernel                = bcpReales × 24
 ```
 
-`indice=10` reserva diez entradas para nombres y direcciones de archivos. El
-espacio de archivos y el de memoria virtual forman parte del almacenamiento total.
+Siempre debe caber al menos un BCP por CPU y el espacio restante se destina a las
+instrucciones de los procesos. Ejemplos:
 
-El kernel ocupa las posiciones anteriores a `inicioUsuario` y no puede superar
-el 50% de RAM. Cada BCP ocupa **24 posiciones**, por lo que el kernel inicial de
-128 posiciones permite alojar cinco BCP activos, incluidos los de procesos
-suspendidos. `maxProcesos` es un límite adicional y también está sujeto al espacio
-disponible para BCP.
+| RAM | CPU | Kernel | BCP | Instrucciones |
+|---:|---:|---:|---:|---:|
+| 500 | 1 | 120 | 5 | 380 |
+| 500 | 5 | 360 | 15 | 140 |
+| 728 | 5 | 600 | 25 | 128 |
+| 1024 | 5 | 600 | 25 | 424 |
 
-Para demostrar cinco procesos en RAM y otro esperando en virtual, se puede usar
-`ram=512` e `inicioUsuario=256`, manteniendo `maxProcesosEnRam=5`. La partición
-permanece fija durante la simulación.
+Con el mínimo de 500 y cinco CPU caben 15 BCP; para los 25 se necesitan al menos
+728 posiciones de RAM. La interfaz muestra esta vista previa mientras se editan
+los valores. Cambiar RAM, almacenamiento o CPU reinicia la simulación porque la
+memoria y el disco tienen tamaño fijo.
+
+El archivo [`config/minipc.txt`](config/minipc.txt) se conserva únicamente por
+compatibilidad con `Controlador(Path)`; la interfaz ya no lo lee.
+
+## Planificación por prioridad
+
+El algoritmo **PRIORIDAD** usa un número mayor como mayor prioridad. La prioridad
+se edita por proceso en la fila `Prioridad ✎` de la tabla o en el spinner de su
+tarjeta, con las mismas reglas que la llegada: entero mayor o igual a cero y solo
+antes de iniciar la simulación. Si dos procesos empatan, se atiende primero el de
+menor tiempo de llegada y luego el PID menor.
+
+La prioridad es estática: no aumenta con el tiempo de espera. La variable
+`expropia` de `Prioridad` vale `true` por defecto; si se cambia a `false`, el
+proceso actual no se interrumpe y solo se elige otro cuando termina o se bloquea.
+Con `expropia = true`, un proceso preparado con prioridad estrictamente mayor
+interrumpe al que está usando la CPU.
 
 ## Cómo ejecutar
 
 Se requiere **JDK 25**, según la configuración actual del proyecto.
 
 1. Abrir el proyecto en NetBeans y ejecutarlo mediante `minipc.Main`.
-2. Usar **Configuración** si se desea seleccionar otro archivo TXT.
+2. Usar **Configuración** para elegir CPU, algoritmo, quantum, RAM y almacenamiento.
 3. Pulsar **Cargar ASM** para importar uno o varios programas de la carpeta
    [`codigo`](codigo). **Ejecutar desde disco** permite ejecutar una copia ya guardada.
 4. Pulsar **Siguiente** para avanzar manualmente o **Ejecutar** para iniciar el
