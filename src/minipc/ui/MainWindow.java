@@ -95,11 +95,12 @@ public class MainWindow extends JFrame {
     private static final int FILA_CPU = 1;
     private static final int FILA_ESTADO = 3;
     private static final int FILA_LLEGADA = 9;
+    private static final int FILA_PRIORIDAD = 10;
 
     private static final String[] CAMPOS_PROCESO = {
             "PID", "CPU asignada", "Programa", "Estado", "Ubicación",
             "Base", "Instrucciones", "Tiempo CPU (s)", "Ráfaga",
-            "Llegada ✎", "Restante"
+            "Llegada ✎", "Prioridad ✎", "Restante"
     };
     private static final int SEGUNDOS_CRONOGRAMA_INICIALES = 80;
 
@@ -140,7 +141,9 @@ public class MainWindow extends JFrame {
                     TipoAlgoritmo.FCFS,
                     TipoAlgoritmo.SPN,
                     TipoAlgoritmo.SRT,
-                    TipoAlgoritmo.RR
+                    TipoAlgoritmo.HRRN,
+                    TipoAlgoritmo.RR,
+                    TipoAlgoritmo.PRIORIDAD
             });
 
     private final JSpinner quantumRR = new JSpinner(
@@ -244,7 +247,7 @@ public class MainWindow extends JFrame {
                 int fila,
                 int columna) {
 
-            if (fila != FILA_LLEGADA
+            if ((fila != FILA_LLEGADA && fila != FILA_PRIORIDAD)
                     || columna <= 0
                     || controlador == null
                     || controlador.getTiempoSimulado() != 0
@@ -263,7 +266,7 @@ public class MainWindow extends JFrame {
                 return false;
             }
 
-            // La llegada se edita individualmente antes del primer tick.
+            // La llegada y la prioridad se editan antes del primer tick.
             return proceso.getEstado() == EstadoProceso.NUEVO;
         }
 
@@ -273,7 +276,8 @@ public class MainWindow extends JFrame {
                 int fila,
                 int columna) {
 
-            if (fila != FILA_LLEGADA || columna <= 0) {
+            if ((fila != FILA_LLEGADA && fila != FILA_PRIORIDAD)
+                    || columna <= 0) {
                 super.setValueAt(valor, fila, columna);
                 return;
             }
@@ -282,24 +286,30 @@ public class MainWindow extends JFrame {
                 return;
             }
 
+            String campo = fila == FILA_LLEGADA
+                    ? "El tiempo de llegada"
+                    : "La prioridad";
+
             try {
 
-                int llegada = Integer.parseInt(
+                int numero = Integer.parseInt(
                         valor.toString().trim());
 
-                if (llegada < 0) {
+                if (numero < 0) {
                     throw new NumberFormatException();
                 }
 
                 int pid = Integer.parseInt(
                         getValueAt(FILA_PID, columna).toString());
 
-                controlador.configurarLlegada(
-                        pid,
-                        llegada);
+                if (fila == FILA_LLEGADA) {
+                    controlador.configurarLlegada(pid, numero);
+                } else {
+                    controlador.configurarPrioridad(pid, numero);
+                }
 
                 super.setValueAt(
-                        Integer.toString(llegada),
+                        Integer.toString(numero),
                         fila,
                         columna);
 
@@ -310,9 +320,11 @@ public class MainWindow extends JFrame {
 
                 JOptionPane.showMessageDialog(
                         MainWindow.this,
-                        "El tiempo de llegada debe ser "
-                                + "un entero mayor o igual a cero.",
-                        "Llegada inválida",
+                        campo + " debe ser un entero "
+                                + "mayor o igual a cero.",
+                        fila == FILA_LLEGADA
+                                ? "Llegada inválida"
+                                : "Prioridad inválida",
                         JOptionPane.ERROR_MESSAGE);
             }
         }
@@ -419,16 +431,7 @@ public class MainWindow extends JFrame {
 
         actualizar();
 
-        try {
-
-            cargarConfiguracion(
-                    this.raiz.resolve(
-                            "config/minipc.txt"));
-
-        } catch (IOException | RuntimeException ex) {
-
-            // El usuario puede cargar la configuración.
-        }
+        aplicarConfiguracionInicial();
     }
 
     // =========================================================
@@ -689,10 +692,11 @@ public class MainWindow extends JFrame {
     // VENTANAS DE CONFIGURACIÓN Y ACERCA DEL DISPOSITIVO
     // =========================================================
 
-    /**
-     * Agrupa la configuración de CPU y algoritmo en una ventana.
-     * La RAM y el disco continúan configurándose desde el archivo
-     * de configuración hasta implementar su edición directa.
+    /*
+     * ¿Qué hace? Abre la ventana donde se eligen CPU, algoritmo, quantum, RAM
+     * y disco. La RAM y el disco ya no salen de un TXT: se escriben aquí, se
+     * validan como enteros y el kernel se calcula solo.
+     * ¿Quién lo llama? El botón "Configurar" de la cabecera.
      */
     private void mostrarConfiguracion() {
 
@@ -719,6 +723,22 @@ public class MainWindow extends JFrame {
         algoritmos.setEnabled(editable);
         quantumRR.setEnabled(editable);
 
+        JSpinner ram = new JSpinner(new SpinnerNumberModel(
+                configuracion.getTamañoMemoria(),
+                Configuracion.RAM_MINIMA,
+                1_000_000,
+                1));
+        JSpinner almacenamiento = new JSpinner(new SpinnerNumberModel(
+                configuracion.getTamañoAlmacenamiento(),
+                Configuracion.ALMACENAMIENTO_MINIMO,
+                1_000_000,
+                1));
+
+        ram.setEditor(new JSpinner.NumberEditor(ram, "0"));
+        almacenamiento.setEditor(new JSpinner.NumberEditor(almacenamiento, "0"));
+        ram.setEnabled(editable);
+        almacenamiento.setEnabled(editable);
+
         JDialog ventana = new JDialog(this, "Configuración de la Mini PC", true);
         ventana.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
         ventana.setLayout(new BorderLayout(12, 12));
@@ -727,7 +747,7 @@ public class MainWindow extends JFrame {
         contenido.setBackground(FONDO);
         contenido.setBorder(new EmptyBorder(18, 18, 8, 18));
 
-        JLabel titulo = new JLabel("Configuración del procesador");
+        JLabel titulo = new JLabel("Configuración del procesador y los recursos");
         titulo.setFont(fuenteInterfaz(Font.BOLD, 18f));
         titulo.setForeground(TEXTO);
         contenido.add(titulo, BorderLayout.NORTH);
@@ -741,42 +761,50 @@ public class MainWindow extends JFrame {
         formulario.add(algoritmos);
         formulario.add(new JLabel("Quantum RR (segundos):"));
         formulario.add(quantumRR);
-        formulario.add(new JLabel("RAM total / Kernel:"));
-        formulario.add(new JLabel(configuracion.getTamañoMemoria()
-                + " / " + configuracion.getInicioUsuario() + " posiciones"));
-        formulario.add(new JLabel("Almacenamiento:"));
-        formulario.add(new JLabel(configuracion.getTamañoAlmacenamiento()
-                + " posiciones"));
+        formulario.add(new JLabel("RAM total (mínimo 500):"));
+        formulario.add(ram);
+        formulario.add(new JLabel("Almacenamiento (mínimo 500):"));
+        formulario.add(almacenamiento);
 
         JPanel centro = new JPanel(new BorderLayout(4, 12));
         centro.setOpaque(false);
         centro.add(formulario, BorderLayout.NORTH);
 
-        JLabel ayuda = new JLabel("<html><div style='width:395px'>"
+        JLabel vistaPrevia = new JLabel(" ");
+        vistaPrevia.setForeground(TEXTO_SECUNDARIO);
+
+        JLabel ayuda = new JLabel("<html><div style='width:420px'>"
                 + (editable
-                        ? "Los cambios de CPU, algoritmo y quantum se guardan al presionar Aplicar. "
-                        : "La simulación ya comenzó: no se permiten cambios de CPU o algoritmo. ")
-                + "La memoria y el disco se podrán editar aquí más adelante; "
-                + "por ahora se leen del archivo de configuración.</div></html>");
+                        ? "Los cambios se guardan al presionar Aplicar. "
+                        : "La simulación ya comenzó: no se permiten cambios. ")
+                + "La RAM y el disco se escriben aquí; el kernel se calcula "
+                + "automáticamente y siempre deja 128 posiciones para las "
+                + "instrucciones.</div></html>");
         ayuda.setForeground(TEXTO_SECUNDARIO);
-        centro.add(ayuda, BorderLayout.CENTER);
+
+        JPanel informacion = new JPanel(new GridLayout(2, 1, 0, 6));
+        informacion.setOpaque(false);
+        informacion.add(vistaPrevia);
+        informacion.add(ayuda);
+
+        centro.add(informacion, BorderLayout.CENTER);
 
         contenido.add(centro, BorderLayout.CENTER);
+
+        javax.swing.event.ChangeListener escucharCambio =
+                e -> actualizarVistaPrevia(vistaPrevia, ram, cantidadCPU);
+        ram.addChangeListener(escucharCambio);
+        cantidadCPU.addChangeListener(escucharCambio);
+        actualizarVistaPrevia(vistaPrevia, ram, cantidadCPU);
 
         JPanel botones = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 8));
         botones.setOpaque(false);
 
-        JButton abrirArchivo = new JButton("Cargar archivo...");
         JButton cancelar = new JButton("Cancelar");
         JButton aplicar = new JButton("Aplicar");
         aplicarBotonPrincipal(aplicar);
 
         aplicar.setEnabled(editable);
-
-        abrirArchivo.addActionListener(e -> {
-            ventana.dispose();
-            elegirConfiguracion();
-        });
 
         cancelar.addActionListener(e -> {
             ventana.dispose();
@@ -793,13 +821,47 @@ public class MainWindow extends JFrame {
                             "Seleccione un algoritmo antes de continuar.");
                 }
 
-                controlador.configurarCantidadCPU((Integer) cantidadCPU.getValue());
-                controlador.configurarQuantumRR((Integer) quantumRR.getValue());
-                controlador.configurarAlgoritmo(seleccionadoAlgoritmo);
-                cpuSeleccionada = Math.min(cpuSeleccionada, controlador.getCantidadCPU());
+                int ramValor = leerEntero(ram, "La RAM");
+                int discoValor = leerEntero(almacenamiento,
+                        "El almacenamiento");
+                int cpus = ((Number) cantidadCPU.getValue()).intValue();
+                int quantum = ((Number) quantumRR.getValue()).intValue();
+
+                Configuracion.validarRecursos(ramValor, discoValor, cpus);
+
+                Configuracion nueva = Configuracion.paraInterfaz(
+                        ramValor,
+                        discoValor,
+                        cpus,
+                        seleccionadoAlgoritmo.name(),
+                        conservar.isSelected());
+
+                boolean cambiaHardware = ramValor != configuracion.getTamañoMemoria()
+                        || discoValor != configuracion.getTamañoAlmacenamiento()
+                        || cpus != controlador.getCantidadCPU();
+
+                if (cambiaHardware && hayProcesosOArchivos()
+                        && JOptionPane.showConfirmDialog(
+                                ventana,
+                                "Cambiar RAM, disco o CPU reinicia la "
+                                        + "simulación y borra los procesos y "
+                                        + "archivos simulados. ¿Continuar?",
+                                "Cambiar configuración",
+                                JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) {
+                    return;
+                }
+
+                if (cambiaHardware || controlador == null) {
+                    aplicarConfiguracion(nueva, cpus,
+                            seleccionadoAlgoritmo, quantum);
+                } else {
+                    controlador.configurarQuantumRR(quantum);
+                    controlador.configurarAlgoritmo(seleccionadoAlgoritmo);
+                    configuracion = nueva;
+                    actualizar();
+                }
 
                 ventana.dispose();
-                actualizar();
 
             } catch (RuntimeException error) {
                 mostrarError(error);
@@ -807,15 +869,165 @@ public class MainWindow extends JFrame {
             }
         });
 
-        botones.add(abrirArchivo);
         botones.add(cancelar);
         botones.add(aplicar);
 
         ventana.add(contenido, BorderLayout.CENTER);
         ventana.add(botones, BorderLayout.SOUTH);
-        ventana.setSize(545, 365);
+        ventana.setSize(620, 470);
         ventana.setLocationRelativeTo(this);
         ventana.setVisible(true);
+
+        cantidadCPU.removeChangeListener(escucharCambio);
+    }
+
+    /*
+     * ¿Qué hace? Pinta cuánto kernel, cuántos BCP y cuántas instrucciones
+     * quedan con la RAM y las CPU que hay ahora en la ventana.
+     * ¿Quién lo llama? Los cambios de RAM/CPU dentro de Configuración.
+     */
+    private void actualizarVistaPrevia(JLabel etiqueta, JSpinner ram,
+            JSpinner cpus) {
+
+        try {
+            int ramValor = ((Number) ram.getValue()).intValue();
+            int cpusValor = ((Number) cpus.getValue()).intValue();
+
+            int kernel = Configuracion.calcularKernel(ramValor, cpusValor);
+            int bcp = kernel / BCP.getTamañoKernel();
+            int instrucciones = ramValor - kernel;
+            int bcpDeseados = Configuracion.PROCESOS_POR_CPU * cpusValor;
+            int ramParaTodos = bcpDeseados * BCP.getTamañoKernel()
+                    + Configuracion.ESPACIO_INSTRUCCIONES_MINIMO;
+
+            String aviso = bcp < bcpDeseados
+                    ? " · para " + bcpDeseados + " BCP necesitas "
+                            + ramParaTodos + " de RAM"
+                    : "";
+
+            etiqueta.setText("<html>Kernel: " + kernel
+                    + " posiciones · BCP: " + bcp + " de " + bcpDeseados
+                    + " · Instrucciones: " + instrucciones
+                    + aviso + "</html>");
+            etiqueta.setForeground(TEXTO_SECUNDARIO);
+
+        } catch (RuntimeException error) {
+            etiqueta.setText(error.getMessage());
+            etiqueta.setForeground(ROJO);
+        }
+    }
+
+    /*
+     * ¿Qué hace? Obliga al spinner a soltar un entero válido; si el usuario
+     * escribió basura o un valor fuera del mínimo, se lanza el error.
+     * ¿Quién lo llama? El botón Aplicar de Configuración.
+     */
+    private int leerEntero(JSpinner spinner, String nombre) {
+
+        String texto = "";
+
+        if (spinner.getEditor() instanceof JSpinner.DefaultEditor editor) {
+            texto = editor.getTextField().getText().trim();
+        }
+
+        int numero;
+
+        try {
+            numero = Integer.parseInt(texto);
+        } catch (NumberFormatException error) {
+            throw new IllegalArgumentException(
+                    nombre + " debe ser un número entero.");
+        }
+
+        SpinnerNumberModel modelo = (SpinnerNumberModel) spinner.getModel();
+        int minimo = ((Number) modelo.getMinimum()).intValue();
+        int maximo = ((Number) modelo.getMaximum()).intValue();
+
+        if (numero < minimo) {
+            throw new IllegalArgumentException(
+                    nombre + " debe ser un entero mayor o igual a "
+                            + minimo + ".");
+        }
+
+        if (numero > maximo) {
+            throw new IllegalArgumentException(
+                    nombre + " debe ser un entero menor o igual a "
+                            + maximo + ".");
+        }
+
+        try {
+            spinner.commitEdit();
+        } catch (java.text.ParseException error) {
+            throw new IllegalArgumentException(
+                    nombre + " debe ser un número entero.");
+        }
+
+        return numero;
+    }
+
+    /*
+     * ¿Qué hace? Dice si ya hay procesos cargados o archivos en el disco
+     * simulado, para avisar antes de tirar la simulación.
+     * ¿Quién lo llama? El botón Aplicar de Configuración.
+     */
+    private boolean hayProcesosOArchivos() {
+
+        return controlador != null
+                && (!controlador.getGestorProcesos()
+                        .getListaTrabajos().isEmpty()
+                        || controlador.getAlmacenamiento()
+                                .getEspacioArchivosOcupado() > 0);
+    }
+
+    /*
+     * ¿Qué hace? Arranca la Mini PC con una configuración por defecto sin leer
+     * ningún TXT: RAM y disco en el mínimo, una CPU y sin algoritmo elegido.
+     * ¿Quién lo llama? El constructor de la ventana principal.
+     */
+    private void aplicarConfiguracionInicial() {
+
+        Configuracion inicial = Configuracion.paraInterfaz(
+                Configuracion.RAM_POR_DEFECTO,
+                Configuracion.ALMACENAMIENTO_POR_DEFECTO,
+                1,
+                "FCFS",
+                true);
+
+        configuracion = inicial;
+        controlador = new Controlador(inicial);
+
+        conservar.setSelected(true);
+
+        actualizar();
+    }
+
+    /*
+     * ¿Qué hace? Tira el controlador viejo y crea uno nuevo con la RAM, el
+     * disco y las CPU elegidas; la memoria y el disco no se pueden
+     * redimensionar en caliente.
+     * ¿Quién lo llama? Aplicar de Configuración cuando cambian los recursos.
+     */
+    private void aplicarConfiguracion(Configuracion nueva, int cpus,
+            TipoAlgoritmo algoritmo, int quantum) {
+
+        detener();
+
+        Controlador nuevo = new Controlador(nueva);
+        nuevo.configurarQuantumRR(quantum);
+        nuevo.configurarCantidadCPU(cpus);
+        nuevo.configurarAlgoritmo(algoritmo);
+
+        configuracion = nueva;
+        controlador = nuevo;
+
+        conservar.setSelected(nueva.isConservarArchivosAlReiniciar());
+
+        nombres.clear();
+        seleccionado = null;
+        historialEjecucion.clear();
+        cpuSeleccionada = 1;
+
+        actualizar();
     }
 
     /** Muestra las características y los recursos del dispositivo. */
@@ -1090,7 +1302,7 @@ public class MainWindow extends JFrame {
         tarjeta.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createMatteBorder(1, 5, 1, 1, colorCPU(cpuId)),
                 new EmptyBorder(9, 10, 9, 10)));
-        tarjeta.setPreferredSize(new Dimension(210, 151));
+        tarjeta.setPreferredSize(new Dimension(210, 185));
 
         JPanel superior = new JPanel(new BorderLayout(4, 0));
         superior.setOpaque(false);
@@ -1138,6 +1350,9 @@ public class MainWindow extends JFrame {
                 && proceso.getEstado() == EstadoProceso.NUEVO
                 && !continuarAutomatico;
 
+        JPanel datosEdicion = new JPanel(new GridLayout(2, 1, 0, 3));
+        datosEdicion.setOpaque(false);
+
         if (editable) {
             JSpinner llegada = new JSpinner(new SpinnerNumberModel(
                     proceso.getTiempoLlegada(), 0, 100000, 1));
@@ -1152,14 +1367,39 @@ public class MainWindow extends JFrame {
                     mostrarError(error);
                 }
             });
-            inferior.add(llegada, BorderLayout.WEST);
+
+            JSpinner prioridad = new JSpinner(new SpinnerNumberModel(
+                    proceso.getPrioridad(), 0, 100000, 1));
+            prioridad.setToolTipText("Editar prioridad de este proceso");
+            prioridad.setPreferredSize(new Dimension(90, 29));
+            prioridad.addChangeListener(e -> {
+                try {
+                    controlador.configurarPrioridad(proceso.getPid(),
+                            (Integer) prioridad.getValue());
+                    actualizarDetalle();
+                } catch (RuntimeException error) {
+                    mostrarError(error);
+                }
+            });
+
+            datosEdicion.add(llegada);
+            datosEdicion.add(prioridad);
         } else {
             JLabel llegada = new JLabel("Llegada: "
                     + proceso.getTiempoLlegada() + " s");
             llegada.setFont(fuenteInterfaz(Font.PLAIN, 11f));
             llegada.setForeground(TEXTO_SECUNDARIO);
-            inferior.add(llegada, BorderLayout.WEST);
+
+            JLabel prioridad = new JLabel("Prioridad: "
+                    + proceso.getPrioridad());
+            prioridad.setFont(fuenteInterfaz(Font.PLAIN, 11f));
+            prioridad.setForeground(TEXTO_SECUNDARIO);
+
+            datosEdicion.add(llegada);
+            datosEdicion.add(prioridad);
         }
+
+        inferior.add(datosEdicion, BorderLayout.WEST);
 
         JButton consultar = new JButton("Ver BCP");
         consultar.setFont(fuenteInterfaz(Font.BOLD, 11f));
@@ -2123,48 +2363,6 @@ public class MainWindow extends JFrame {
         return chooser;
     }
 
-    private void elegirConfiguracion() {
-
-        JFileChooser chooser = new JFileChooser(
-                raiz.resolve("config").toFile());
-
-        chooser.setFileFilter(
-                new FileNameExtensionFilter(
-                        "Configuración Mini PC (*.properties, *.txt)",
-                        "properties",
-                        "txt"));
-
-        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
-            return;
-        }
-
-        if (controlador != null
-                && (!controlador.getGestorProcesos()
-                        .getListaTrabajos().isEmpty()
-                        || controlador.getAlmacenamiento()
-                                .getEspacioArchivosOcupado() > 0)
-                && JOptionPane.showConfirmDialog(
-                        this,
-                        "La nueva configuración inicia otra "
-                                + "simulación y borra los archivos "
-                                + "simulados. ¿Continuar?",
-                        "Cambiar configuración",
-                        JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) {
-
-            return;
-        }
-
-        try {
-
-            cargarConfiguracion(
-                    chooser.getSelectedFile().toPath());
-
-        } catch (IOException | RuntimeException ex) {
-
-            mostrarError(ex);
-        }
-    }
-
     private void elegirProgramas() {
 
         JFileChooser chooser = selector(
@@ -2566,6 +2764,7 @@ public class MainWindow extends JFrame {
                     Integer.toString(p.getTiempoCPU()),
                     Integer.toString(p.getRafaga()),
                     Integer.toString(p.getTiempoLlegada()),
+                    Integer.toString(p.getPrioridad()),
                     Integer.toString(p.getTiempoRestante())
             });
 
@@ -3290,9 +3489,9 @@ public class MainWindow extends JFrame {
                         : AZUL_SUAVE);
                 componente.setForeground(TEXTO);
 
-            } else if (row == FILA_LLEGADA
+            } else if ((row == FILA_LLEGADA || row == FILA_PRIORIDAD)
                     && trabajos.isCellEditable(row, column)) {
-                // El amarillo identifica la celda editable por doble clic.
+                // El amarillo identifica las celdas editables por doble clic.
                 componente.setBackground(new Color(255, 248, 212));
                 componente.setForeground(new Color(114, 77, 14));
 
@@ -3304,14 +3503,17 @@ public class MainWindow extends JFrame {
             }
 
             setFont(table.getFont().deriveFont(
-                    row == FILA_PID || row == FILA_CPU || row == FILA_LLEGADA
+                    row == FILA_PID || row == FILA_CPU
+                            || row == FILA_LLEGADA || row == FILA_PRIORIDAD
                             || estadoProceso.equals("EJECUCION")
                             ? Font.BOLD : Font.PLAIN));
 
             setToolTipText(row == FILA_LLEGADA
                     ? "Doble clic para editar la llegada antes de iniciar"
-                    : "Proceso " + table.getValueAt(FILA_PID, column)
-                            + " asignado a " + cpuTexto);
+                    : row == FILA_PRIORIDAD
+                            ? "Doble clic para editar la prioridad antes de iniciar"
+                            : "Proceso " + table.getValueAt(FILA_PID, column)
+                                    + " asignado a " + cpuTexto);
 
             return componente;
         }

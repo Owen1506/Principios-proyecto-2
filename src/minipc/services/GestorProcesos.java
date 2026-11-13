@@ -515,6 +515,12 @@ public class GestorProcesos {
         this.instanteSimulado = instanteSimulado;
     }
 
+    /** Segundo simulado actual, usado por los planificadores que dependen del tiempo. */
+    public int getInstanteSimulado() {
+
+        return instanteSimulado;
+    }
+
     public void prepararProcesosLlegados(int tiempoActual) {
 
         for (BCP proceso : listaTrabajos) {

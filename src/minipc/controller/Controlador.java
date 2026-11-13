@@ -27,6 +27,8 @@ import minipc.services.FCFS;
 import minipc.services.GestorInterrupciones;
 import minipc.services.GestorMemoriaVirtual;
 import minipc.services.GestorProcesos;
+import minipc.services.HRRN;
+import minipc.services.Prioridad;
 import minipc.services.RoundRobin;
 import minipc.services.SPN;
 import minipc.services.SRT;
@@ -117,6 +119,10 @@ public class Controlador {
             case SPN -> new SPN(gestorProcesos);
 
             case SRT -> new SRT(gestorProcesos);
+
+            case HRRN -> new HRRN(gestorProcesos);
+
+            case PRIORIDAD -> new Prioridad(gestorProcesos);
 
             case RR -> new RoundRobin(
                     gestorProcesos,
@@ -714,6 +720,29 @@ public class Controlador {
         }
 
         proceso.setTiempoLlegada(llegada);
+    }
+
+    /*
+     * ¿Qué hace? Cambia la prioridad de un proceso antes de que empiece a
+     * ejecutarse. Usa las mismas reglas que el tiempo de llegada: entero
+     * mayor o igual a cero y el proceso debe existir.
+     * ¿Quién lo llama? La tabla y las tarjetas de procesos de MainWindow.
+     */
+    public void configurarPrioridad(int pid, int prioridad) {
+
+        if (prioridad < 0) {
+            throw new IllegalArgumentException(
+                    "La prioridad no puede ser negativa.");
+        }
+
+        BCP proceso = gestorProcesos.buscarProceso(pid);
+
+        if (proceso == null) {
+            throw new IllegalArgumentException(
+                    "No existe el proceso " + pid);
+        }
+
+        proceso.setPrioridad(prioridad);
     }
 
     public void configurarCantidadCPU(int cantidad) {
