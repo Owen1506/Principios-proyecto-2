@@ -144,7 +144,8 @@ public class MainWindow extends JFrame {
                     TipoAlgoritmo.HRRN,
                     TipoAlgoritmo.RR,
                     TipoAlgoritmo.PRIORIDAD,
-                    TipoAlgoritmo.SELFISH_ROUND_ROBIN
+                    TipoAlgoritmo.SELFISH_ROUND_ROBIN,
+                    TipoAlgoritmo.LOTTERY
             });
 
     private final JSpinner quantumRR = new JSpinner(
@@ -287,7 +288,7 @@ public class MainWindow extends JFrame {
 
             String campo = fila == FILA_LLEGADA
                     ? "El tiempo de llegada"
-                    : "La prioridad";
+                    : (usaTickets() ? "Los tickets" : "La prioridad");
 
             try {
 
@@ -322,7 +323,9 @@ public class MainWindow extends JFrame {
                         fila == FILA_PRIORIDAD
                                 && controlador.getAlgoritmoSeleccionado() == TipoAlgoritmo.PRIORIDAD
                                 ? "La prioridad debe ser un entero entre 1 y 10."
-                                : campo + " debe ser un entero mayor o igual a cero.",
+                                : usaTickets() && fila == FILA_PRIORIDAD
+                                        ? "Los tickets deben ser un entero mayor que cero."
+                                        : campo + " debe ser un entero mayor o igual a cero.",
                         fila == FILA_LLEGADA
                                 ? "Llegada inválida"
                                 : "Prioridad inválida",
@@ -783,7 +786,8 @@ public class MainWindow extends JFrame {
             TipoAlgoritmo seleccionado = (TipoAlgoritmo) algoritmos.getSelectedItem();
             filaModo.setVisible(seleccionado == TipoAlgoritmo.PRIORIDAD);
             filaQuantum.setVisible(seleccionado == TipoAlgoritmo.RR
-                    || seleccionado == TipoAlgoritmo.SELFISH_ROUND_ROBIN);
+                    || seleccionado == TipoAlgoritmo.SELFISH_ROUND_ROBIN
+                    || seleccionado == TipoAlgoritmo.LOTTERY);
             filaA.setVisible(seleccionado == TipoAlgoritmo.SELFISH_ROUND_ROBIN);
             filaB.setVisible(seleccionado == TipoAlgoritmo.SELFISH_ROUND_ROBIN);
             formulario.revalidate();
@@ -1321,10 +1325,19 @@ public class MainWindow extends JFrame {
      * Incluye acceso al BCP sin desplazar horizontalmente una tabla.
      */
     /* ¿Qué hace? Dice si el algoritmo usa el campo de prioridad. ¿Quién lo llama? Las vistas de procesos. */
+    private boolean usaTickets() {
+        return controlador != null && controlador.getAlgoritmoSeleccionado() == TipoAlgoritmo.LOTTERY;
+    }
+
+    private String etiquetaPrioridad() {
+        return usaTickets() ? "Tickets" : "Prioridad";
+    }
+
     private boolean usaPrioridad() {
         if (controlador == null) return false;
         TipoAlgoritmo tipo = controlador.getAlgoritmoSeleccionado();
-        return tipo == TipoAlgoritmo.PRIORIDAD || tipo == TipoAlgoritmo.SELFISH_ROUND_ROBIN;
+        return tipo == TipoAlgoritmo.PRIORIDAD || tipo == TipoAlgoritmo.SELFISH_ROUND_ROBIN
+                || tipo == TipoAlgoritmo.LOTTERY;
     }
 
     /* ¿Qué hace? Pone nombre visible al campo de una tarjeta. ¿Quién lo llama? crearTarjetaProceso(). */
@@ -1422,11 +1435,11 @@ public class MainWindow extends JFrame {
             if (usaPrioridad) {
                 boolean prioridadEstatica = controlador.getAlgoritmoSeleccionado() == TipoAlgoritmo.PRIORIDAD;
                 JSpinner prioridad = new JSpinner(new SpinnerNumberModel(
-                    proceso.getPrioridad(), prioridadEstatica ? 1 : 0,
-                    prioridadEstatica ? 10 : 100000, 1));
+                    proceso.getPrioridad(), (prioridadEstatica || usaTickets()) ? 1 : 0,
+                    prioridadEstatica ? 10 : (usaTickets() ? Integer.MAX_VALUE : 100000), 1));
                 prioridad.setToolTipText(prioridadEstatica
                     ? "Prioridad de 1 (mayor) a 10 (menor)"
-                    : "Editar prioridad de este proceso");
+                    : "Editar " + etiquetaPrioridad().toLowerCase() + " de este proceso");
                 prioridad.setPreferredSize(new Dimension(70, 29));
                 prioridad.addChangeListener(e -> {
                 try {
@@ -1437,7 +1450,7 @@ public class MainWindow extends JFrame {
                     mostrarError(error);
                 }
                 });
-                datosEdicion.add(filaDatoProceso("Prioridad:", prioridad));
+                datosEdicion.add(filaDatoProceso(etiquetaPrioridad() + ":", prioridad));
             }
         } else {
             JLabel llegada = new JLabel("Llegada: "
@@ -1445,7 +1458,7 @@ public class MainWindow extends JFrame {
             llegada.setFont(fuenteInterfaz(Font.PLAIN, 11f));
             llegada.setForeground(TEXTO_SECUNDARIO);
 
-            JLabel prioridad = new JLabel("Prioridad: "
+            JLabel prioridad = new JLabel(etiquetaPrioridad() + ": "
                     + proceso.getPrioridad());
             prioridad.setFont(fuenteInterfaz(Font.PLAIN, 11f));
             prioridad.setForeground(TEXTO_SECUNDARIO);
@@ -2608,6 +2621,7 @@ public class MainWindow extends JFrame {
                         : controlador.getAlgoritmoSeleccionado().name()
                                 + (controlador.getAlgoritmoSeleccionado() == TipoAlgoritmo.RR
                                         || controlador.getAlgoritmoSeleccionado() == TipoAlgoritmo.SELFISH_ROUND_ROBIN
+                                        || controlador.getAlgoritmoSeleccionado() == TipoAlgoritmo.LOTTERY
                                         ? " · quantum " + controlador.getQuantumRR() + " s"
                                         : "")
                                 + (controlador.getAlgoritmoSeleccionado() == TipoAlgoritmo.SELFISH_ROUND_ROBIN
@@ -2780,7 +2794,8 @@ public class MainWindow extends JFrame {
 
         // Filas = atributos, columnas = procesos (matriz transpuesta).
         for (String campo : CAMPOS_PROCESO) {
-            trabajos.addRow(new Object[] { campo });
+            trabajos.addRow(new Object[] { campo.startsWith("Prioridad")
+                    ? etiquetaPrioridad() + " \u270E" : campo });
         }
 
         StringBuilder resumenEstadisticas = new StringBuilder();
@@ -2951,6 +2966,9 @@ public class MainWindow extends JFrame {
                                             .leer(i)
                                             .getTextoOriginal();
 
+            if (usaTickets() && contenido != null && contenido.startsWith("PRIORIDAD = ")) {
+                contenido = contenido.replace("PRIORIDAD = ", "TICKETS = ");
+            }
             ram.addRow(new String[] {
                     Integer.toString(i),
                     i < controlador.getInicioUsuario()
@@ -3382,7 +3400,7 @@ public class MainWindow extends JFrame {
                     new String[][] {
                             { "Estado", p.getEstado().toString() },
                             { "Llegada", p.getTiempoLlegada() + " s" },
-                            { "Prioridad", String.valueOf(p.getPrioridad()) },
+                            { etiquetaPrioridad(), String.valueOf(p.getPrioridad()) },
                             { "Tiempo CPU", p.getTiempoCPU() + " s" },
                             { "Ráfaga", p.getRafaga() + " s" },
                             { "Restante", p.getTiempoRestante() + " s" }
@@ -3575,7 +3593,7 @@ public class MainWindow extends JFrame {
             setToolTipText(row == FILA_LLEGADA
                     ? "Doble clic para editar la llegada antes de iniciar"
                     : row == FILA_PRIORIDAD
-                            ? "Doble clic para editar la prioridad antes de iniciar"
+                            ? "Doble clic para editar " + etiquetaPrioridad().toLowerCase() + " antes de iniciar"
                             : "Proceso " + table.getValueAt(FILA_PID, column)
                                     + " asignado a " + cpuTexto);
 

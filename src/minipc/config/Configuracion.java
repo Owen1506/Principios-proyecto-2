@@ -71,7 +71,8 @@ public class Configuracion {
                 && seleccionado != TipoAlgoritmo.HRRN
                 && seleccionado != TipoAlgoritmo.RR
                 && seleccionado != TipoAlgoritmo.PRIORIDAD
-                && seleccionado != TipoAlgoritmo.SELFISH_ROUND_ROBIN) {
+                && seleccionado != TipoAlgoritmo.SELFISH_ROUND_ROBIN
+                && seleccionado != TipoAlgoritmo.LOTTERY) {
 
             throw new IllegalArgumentException(
                     "Algoritmo aún no implementado: "
