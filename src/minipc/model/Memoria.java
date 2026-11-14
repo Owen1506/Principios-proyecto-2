@@ -3,6 +3,11 @@ package minipc.model;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import minipc.services.memoria.AsignacionMemoria;
+import minipc.services.memoria.EstrategiaAsignacionMemoria;
+import minipc.services.memoria.dinamica.FirstFit;
 
 /**
  * Simula la memoria principal de la Mini PC.
@@ -20,6 +25,8 @@ public class Memoria {
     private final int size;
     private final int inicioUsuario;
 
+    private final EstrategiaAsignacionMemoria estrategia;
+    private final Map<Integer, AsignacionMemoria> asignaciones = new HashMap<>();
     private List<BCP> areaSistema;
     private List<Instruccion> areaUsuario;
 
@@ -31,6 +38,11 @@ public class Memoria {
      * @param inicioUsuario primera posición disponible para programas de usuario
      */
     public Memoria(int size, int inicioUsuario) {
+        this(size, inicioUsuario, new FirstFit(inicioUsuario, size));
+    }
+
+    /** La estrategia administra el área de usuario [inicioUsuario, size). */
+    public Memoria(int size, int inicioUsuario, EstrategiaAsignacionMemoria estrategia) {
 
         if (size < 128) {
             throw new IllegalArgumentException("El tamaño mínimo de memoria es 128.");
@@ -40,13 +52,15 @@ public class Memoria {
             throw new IllegalArgumentException("El inicio del espacio de usuario no es válido.");
         }
 
+        if (estrategia == null) throw new IllegalArgumentException("Debe indicar una estrategia.");
+        this.estrategia = estrategia;
         this.size = size;
         this.inicioUsuario = inicioUsuario;
         reiniciar();
     }
 
     public boolean hayEspacioDisponible(int cantidad) {
-        return cantidad > 0 && buscarEspacioLibre(cantidad) != -1;
+        return estrategia.hayEspacioDisponible(cantidad);
     }
 
     /**
@@ -65,49 +79,48 @@ public class Memoria {
             throw new IllegalArgumentException("El programa contiene instrucciones null.");
         }
 
-        int inicioPrograma = buscarEspacioLibre(programa.size());
-
-        if (inicioPrograma == -1) {
-            throw new IllegalStateException("No hay espacio suficiente en memoria para cargar el programa.");
-        }
-
-        for (int i = 0; i < programa.size(); i++) {
-            areaUsuario.set(inicioPrograma + i - inicioUsuario, programa.get(i));
-        }
-
-        return inicioPrograma;
-    }
-
-    /**
-     * Busca espacio consecutivo dentro del área de usuario.
-     */
-    private int buscarEspacioLibre(int cantidad) {
-
-        int consecutivos = 0;
-        int posibleInicio = -1;
-
-        for (int i = inicioUsuario; i < size; i++) {
-
-            if (areaUsuario.get(i - inicioUsuario) == null) {
-
-                if (consecutivos == 0) {
-                    posibleInicio = i;
-                }
-
-                consecutivos++;
-
-                if (consecutivos == cantidad) {
-                    return posibleInicio;
-                }
-
-            } else {
-                consecutivos = 0;
-                posibleInicio = -1;
+        AsignacionMemoria asignacion = estrategia.asignar(programa.size());
+        // Validar toda la reserva antes de escribir instrucciones.
+        try {
+            if (asignacion.getCantidad() != programa.size()) {
+                throw new IllegalStateException("La reserva no coincide con el programa.");
             }
+            for (int direccion : asignacion.getPosiciones()) {
+                validarDireccionUsuario(direccion);
+                if (leer(direccion) != null) throw new IllegalStateException("La reserva se superpone con otro programa.");
+            }
+        } catch (RuntimeException error) {
+            estrategia.liberar(asignacion);
+            throw error;
         }
-
-        return -1;
+        for (int i = 0; i < programa.size(); i++) {
+            areaUsuario.set(asignacion.obtenerDireccionFisica(i) - inicioUsuario, programa.get(i));
+        }
+        int inicio = asignacion.obtenerDireccionFisica(0);
+        asignaciones.put(inicio, asignacion);
+        return inicio;
     }
+
+    public AsignacionMemoria getAsignacion(int inicio) {
+        AsignacionMemoria asignacion = asignaciones.get(inicio);
+        if (asignacion == null) throw new IllegalArgumentException("No existe una reserva en " + inicio);
+        return asignacion;
+    }
+
+    /** Traduce el PC lógico utilizando la reserva vigente del proceso. */
+    public int obtenerDireccionFisica(BCP proceso, int posicionLogica) {
+        AsignacionMemoria asignacion = getAsignacion(proceso.getInicioPrograma());
+        if (asignacion != proceso.getAsignacionMemoria()) {
+            throw new IllegalStateException("El proceso no tiene una asignación vigente en RAM.");
+        }
+        return asignacion.obtenerDireccionFisica(posicionLogica);
+    }
+
+    public Instruccion leer(BCP proceso, int posicionLogica) {
+        return leer(obtenerDireccionFisica(proceso, posicionLogica));
+    }
+
+    public int getPosicionesLibres() { return estrategia.getPosicionesLibres(); }
 
     /**
      * Guarda un BCP dentro del espacio reservado para el S.O.
@@ -193,6 +206,9 @@ public class Memoria {
     public void escribir(int direccion, Instruccion instruccion) {
 
         validarDireccionUsuario(direccion);
+        if (instruccion == null || areaUsuario.get(direccion - inicioUsuario) == null) {
+            throw new IllegalArgumentException("Solo se pueden reemplazar instrucciones en posiciones asignadas.");
+        }
         areaUsuario.set(direccion - inicioUsuario, instruccion);
     }
 
@@ -204,14 +220,13 @@ public class Memoria {
      */
     public void liberarPrograma(int inicio, int tamañoPrograma) {
 
-        for (int i = 0; i < tamañoPrograma; i++) {
-
-            int direccion = inicio + i;
-
-            if (direccion >= inicioUsuario && direccion < size) {
-                areaUsuario.set(direccion - inicioUsuario, null);
-            }
+        AsignacionMemoria asignacion = getAsignacion(inicio);
+        if (asignacion.getCantidad() != tamañoPrograma) {
+            throw new IllegalArgumentException("La cantidad no coincide con la reserva.");
         }
+        estrategia.liberar(asignacion);
+        for (int direccion : asignacion.getPosiciones()) areaUsuario.set(direccion - inicioUsuario, null);
+        asignaciones.remove(inicio);
     }
 
     /**
@@ -234,6 +249,8 @@ public class Memoria {
      * Reinicia completamente la memoria principal.
      */
     public void reiniciar() {
+        estrategia.reiniciar();
+        asignaciones.clear();
         areaSistema = new ArrayList<>(Collections.<BCP>nCopies(inicioUsuario, null));
         areaUsuario = new ArrayList<>(Collections.<Instruccion>nCopies(size - inicioUsuario, null));
     }

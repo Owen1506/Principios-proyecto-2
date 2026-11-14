@@ -1644,7 +1644,7 @@ public class MainWindow extends JFrame {
 
         registros.add(
                 crearCeldaRegistro(
-                        "PC", valorPC,
+                        "PC lógico", valorPC,
                         AZUL_SUAVE, AZUL));
 
         registros.add(
@@ -3437,8 +3437,8 @@ public class MainWindow extends JFrame {
 
             JPanel memoriaYTiempo = crearGrupoDetalleBCP("Memoria y tiempo",
                     new String[][] {
-                            { "Inicio del programa", String.valueOf(p.getInicioPrograma()) },
-                            { "Fin del programa", String.valueOf(p.getFinPrograma()) },
+                            { "Primera posición física", String.valueOf(p.getInicioPrograma()) },
+                            { "Última posición física", String.valueOf(p.getFinPrograma()) },
                             { "Tamaño", p.getTamañoPrograma() + " instrucciones" },
                             { "Dirección BCP", String.valueOf(p.getDireccionBCP()) },
                             { "Inicio real", hora(p.getHoraInicio()) },
@@ -3447,7 +3447,7 @@ public class MainWindow extends JFrame {
 
             JPanel registrosYContexto = crearGrupoDetalleBCP("Registros y contexto",
                     new String[][] {
-                            { "PC", String.valueOf(p.getPC()) },
+                            { "PC lógico", String.valueOf(p.getPC()) },
                             { "IR · instrucción", String.valueOf(p.getIR()) },
                             { "AC", String.valueOf(p.getAC()) },
                             { "Zero Flag", String.valueOf(p.isZeroFlag()) },

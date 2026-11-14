@@ -282,12 +282,11 @@ public class Executor {
         // ASMValidator ya comprobó que el desplazamiento es numérico antes del parseo.
         // Usa long para detectar también el desbordamiento de un desplazamiento int.
         long destino = (long) cpu.getPC() + instruccion.getValor();
-        if (destino < proceso.getInicioPrograma() || destino > proceso.getFinPrograma()) {
+        if (destino < 0 || destino >= proceso.getTamañoPrograma()) {
             throw new IllegalStateException("Salto " + instruccion.getOperacion()
                     + " fuera de rango en PID " + proceso.getPid()
                     + ": PC=" + cpu.getPC() + ", destino=" + destino
-                    + ", rango permitido=" + proceso.getInicioPrograma()
-                    + ".." + proceso.getFinPrograma());
+                    + ", rango lógico permitido=0.." + (proceso.getTamañoPrograma() - 1));
         }
         cpu.setPC((int) destino);
     }

@@ -78,8 +78,8 @@ public class GestorMemoriaVirtual {
 
         List<Instruccion> programa = new ArrayList<>();
 
-        for (int i = proceso.getInicioPrograma(); i <= proceso.getFinPrograma(); i++) {
-            Instruccion instruccion = memoria.leer(i);
+        for (int i = 0; i < proceso.getTamañoPrograma(); i++) {
+            Instruccion instruccion = memoria.leer(proceso, i);
 
             if (instruccion == null) {
                 throw new IllegalStateException("No existe una instrucción en la dirección " + i);
@@ -146,7 +146,7 @@ public class GestorMemoriaVirtual {
         }
         int nuevoInicio = memoria.cargarPrograma(programa);
 
-        proceso.reubicarPrograma(nuevoInicio);
+        proceso.reubicarPrograma(memoria.getAsignacion(nuevoInicio));
 
         almacenamiento.liberarProgramaVirtual(inicioVirtual, proceso.getTamañoPrograma());
         eliminarDireccionVirtual(proceso.getPid());

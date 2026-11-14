@@ -81,7 +81,7 @@ public final class InformeEjecucion {
             String huella = c.getHuellaPrograma(p.getPid());
             Integer prioridadInicial = c.getPrioridadInicialInforme(p.getPid());
             if (huella == null || prioridadInicial == null) verificable = false;
-            String contexto = "PC: " + p.getPC() + "\nIR: " + p.getIR()
+            String contexto = "PC lógico: " + p.getPC() + "\nIR: " + p.getIR()
                     + "\nAC: " + p.getAC() + "\nAX: " + p.getAX() + "\nBX: " + p.getBX()
                     + "\nCX: " + p.getCX() + "\nDX: " + p.getDX() + "\nAH: " + p.getAH()
                     + "\nAL: " + p.getAL() + "\nZF: " + p.isZeroFlag() + "\nPila: " + p.getPila()
