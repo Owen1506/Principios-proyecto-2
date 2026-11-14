@@ -28,6 +28,7 @@ import minipc.services.GestorInterrupciones;
 import minipc.services.GestorMemoriaVirtual;
 import minipc.services.GestorProcesos;
 import minipc.services.HRRN;
+import minipc.services.LotteryScheduling;
 import minipc.services.Prioridad;
 import minipc.services.RoundRobin;
 import minipc.services.SelfishRoundRobin;
@@ -125,6 +126,8 @@ public class Controlador {
             case SRT -> new SRT(gestorProcesos);
 
             case HRRN -> new HRRN(gestorProcesos);
+
+            case LOTTERY -> new LotteryScheduling(gestorProcesos, quantumRR);
 
             case PRIORIDAD -> new Prioridad(gestorProcesos, prioridadExpropiativa);
 
@@ -719,6 +722,13 @@ public class Controlador {
                 }
             }
         }
+        if (algoritmo == TipoAlgoritmo.LOTTERY) {
+            for (BCP proceso : gestorProcesos.getListaTrabajos()) {
+                if (proceso.getEstado() != EstadoProceso.FINALIZADO && proceso.getPrioridad() == 0) {
+                    proceso.setPrioridad(1);
+                }
+            }
+        }
         AlgoritmoPlanificacion nuevo = crearPlanificador(algoritmo);
         this.planificador = nuevo;
 
@@ -773,7 +783,8 @@ public class Controlador {
 
     /* ¿Qué hace? Escoge el valor inicial adecuado. ¿Quién lo llama? Las cargas sin prioridad explícita. */
     private int prioridadPredeterminada() {
-        return algoritmoSeleccionado == TipoAlgoritmo.PRIORIDAD ? 1 : 0;
+        return (algoritmoSeleccionado == TipoAlgoritmo.PRIORIDAD
+                || algoritmoSeleccionado == TipoAlgoritmo.LOTTERY) ? 1 : 0;
     }
 
     /* ¿Qué hace? Revisa el rango sin cambiar las reglas de SRR. ¿Quién lo llama? La carga y la edición de prioridad. */
@@ -782,6 +793,8 @@ public class Controlador {
             if (prioridad < 1 || prioridad > 10) {
                 throw new IllegalArgumentException("La prioridad debe estar entre 1 y 10.");
             }
+        } else if (algoritmoSeleccionado == TipoAlgoritmo.LOTTERY && prioridad < 1) {
+            throw new IllegalArgumentException("Los tickets deben ser un entero mayor que cero.");
         } else if (prioridad < 0) {
             throw new IllegalArgumentException("La prioridad no puede ser negativa.");
         }
@@ -905,7 +918,8 @@ public class Controlador {
         quantumRR = quantum;
 
         if (algoritmoSeleccionado == TipoAlgoritmo.RR
-                || algoritmoSeleccionado == TipoAlgoritmo.SELFISH_ROUND_ROBIN) {
+                || algoritmoSeleccionado == TipoAlgoritmo.SELFISH_ROUND_ROBIN
+                || algoritmoSeleccionado == TipoAlgoritmo.LOTTERY) {
 
             configurarAlgoritmo(algoritmoSeleccionado);
         }
