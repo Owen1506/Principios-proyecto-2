@@ -73,7 +73,7 @@ public class CPU {
     /**
      * Modifica el valor del Program Counter.
      *
-     * @param pc nueva dirección que será almacenada en el PC
+     * @param pc posición lógica de la próxima instrucción dentro del programa
      */
     public void setPC(int pc) {
         this.pc = pc;

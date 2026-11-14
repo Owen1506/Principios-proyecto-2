@@ -1,5 +1,7 @@
 package minipc.model;
 
+import minipc.services.memoria.AsignacionMemoria;
+
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -44,6 +46,7 @@ public class BCP {
     private String al;
 
     // Información del programa en memoria
+    private AsignacionMemoria asignacionMemoria;
     private int inicioPrograma;
     private int finPrograma;
     private int tamañoPrograma;
@@ -152,10 +155,10 @@ public class BCP {
         this.tamañoPrograma = tamañoPrograma;
 
         if (inicioPrograma == -1) {
-            this.pc = -1;
+            this.pc = 0;
             this.finPrograma = -1;
         } else {
-            this.pc = inicioPrograma;
+            this.pc = 0;
             this.finPrograma = inicioPrograma + tamañoPrograma - 1;
         }
 
@@ -280,24 +283,21 @@ public class BCP {
      * que ya llevaba el PC.
      *
      * Si el proceso todavía no había sido cargado en RAM
-     * (inicioPrograma = -1), comenzará desde la primera instrucción.
+     * (inicioPrograma = -1), su PC lógico ya comienza en cero.
      */
-    public void reubicarPrograma(int nuevoInicio) {
+    public void reubicarPrograma(AsignacionMemoria asignacion) {
 
-        if (nuevoInicio < 0) {
+        if (asignacion == null || asignacion.getCantidad() != tamañoPrograma) {
             throw new IllegalArgumentException("La nueva dirección inicial no es válida.");
         }
 
-        int desplazamientoPC = 0;
-
-        if (inicioPrograma >= 0 && pc >= inicioPrograma) {
-            desplazamientoPC = pc - inicioPrograma;
-        }
-
-        this.inicioPrograma = nuevoInicio;
-        this.finPrograma = nuevoInicio + tamañoPrograma - 1;
-        this.pc = nuevoInicio + desplazamientoPC;
+        this.asignacionMemoria = asignacion;
+        this.inicioPrograma = asignacion.obtenerDireccionFisica(0);
+        this.finPrograma = asignacion.obtenerDireccionFisica(tamañoPrograma - 1);
+        // El PC es lógico: cambiar de ubicación física no cambia su avance.
     }
+
+    public AsignacionMemoria getAsignacionMemoria() { return asignacionMemoria; }
 
     public int getInicioPrograma() {
         return inicioPrograma;

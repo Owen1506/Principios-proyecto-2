@@ -64,6 +64,55 @@ estadísticas de ejecución.
 
 ## Configuración y capacidad del kernel
 
+### Estructura de asignación de memoria (MEM-01)
+
+La asignación del área de usuario se organiza en:
+
+```text
+src/minipc/services/memoria/
+├── EstrategiaAsignacionMemoria.java
+├── AsignacionMemoria.java
+└── dinamica/
+    └── FirstFit.java
+```
+
+- `EstrategiaAsignacionMemoria` define cómo reservar, liberar y consultar espacio.
+- `AsignacionMemoria` conserva las posiciones físicas de las instrucciones en su
+  orden lógico. La posición lógica 0 corresponde a la primera instrucción del programa.
+- `FirstFit` reserva el primer bloque contiguo suficiente y permite reutilizarlo
+  cuando el programa termina o se suspende.
+- `Memoria` guarda las instrucciones y las reservas vigentes. Su constructor
+  permite recibir otra estrategia; el constructor habitual utiliza First Fit.
+
+El PC de la CPU y del BCP ahora es **lógico**: comienza en 0 y no cambia al mover
+el programa de ubicación. `Memoria.obtenerDireccionFisica(proceso, posicionLogica)`
+traduce esa posición antes de leer RAM. Los saltos siguen siendo relativos al PC.
+`LOAD` y `STORE` operan con registros y acumulador; no acceden a direcciones de RAM.
+La interfaz muestra el PC lógico y las direcciones físicas por separado.
+
+La reserva del kernel y sus BCP se conserva. La suspensión y reactivación siguen
+trasladando programas completos; esta historia no implementa paginación,
+particiones fijas, Next Fit ni Best Fit. Cada estrategia futura debe administrar
+el área de usuario indicada al construir `Memoria`, sin modificar el kernel.
+La configuración y las vistas específicas de esas modalidades se implementarán
+con cada estrategia.
+
+Las pruebas de esta estructura están en `tests/minipc/MemoriaTest.java`, sin
+dependencias externas. Desde PowerShell, en la raíz del proyecto:
+
+```powershell
+$clasesMemoria = Join-Path $env:TEMP 'minipc-mem01-classes'
+$fuentesMemoria = @(Get-ChildItem src,tests -Recurse -Filter *.java | ForEach-Object { $_.FullName })
+javac -encoding UTF-8 -d $clasesMemoria @fuentesMemoria
+java '-Djava.awt.headless=true' -cp $clasesMemoria minipc.MemoriaTest
+```
+
+Comprueban fragmentación, reservas fallidas, reutilización, traducción de posiciones
+separadas, suspensión con reubicación, ejecución con los diez planificadores y cinco
+CPU, saltos y liberación tras errores.
+
+### Tamaños y reserva del kernel
+
 La RAM y el almacenamiento se escriben en la ventana **Configuración** como
 enteros mayores o iguales a **500**. El kernel se calcula al aplicar los cambios:
 

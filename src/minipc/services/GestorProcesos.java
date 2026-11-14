@@ -127,6 +127,7 @@ public class GestorProcesos {
 
         BCP bcp = new BCP(siguientePid, inicioPrograma, tamañoPrograma);
 
+        if (inicioPrograma >= 0) bcp.reubicarPrograma(memoria.getAsignacion(inicioPrograma));
         bcp.setPrioridad(prioridad);
 
         memoria.guardarBCP(bcp);

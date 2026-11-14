@@ -450,7 +450,7 @@ public class Controlador {
             return false;
         }
 
-        if (procesador.getPC() > proceso.getFinPrograma()) {
+        if (procesador.getPC() >= proceso.getTamañoPrograma()) {
 
             plan.guardarContextoActual();
 
@@ -463,7 +463,7 @@ public class Controlador {
             return false;
         }
 
-        if (procesador.getPC() < proceso.getInicioPrograma()) {
+        if (procesador.getPC() < 0) {
 
             finalizarPorError(
                     nucleo,
@@ -476,7 +476,7 @@ public class Controlador {
 
         if (nucleo.getInstruccionActual() == null) {
 
-            Instruccion instruccion = memoria.leer(procesador.getPC());
+            Instruccion instruccion = memoria.leer(proceso, procesador.getPC());
 
             if (instruccion == null) {
 
@@ -501,7 +501,7 @@ public class Controlador {
             procesador.setIR(instruccion.getTextoOriginal());
         }
 
-        nucleo.registrarInstruccionTick(procesador.getPC(), proceso.getPid());
+        nucleo.registrarInstruccionTick(memoria.obtenerDireccionFisica(proceso, procesador.getPC()), proceso.getPid());
         gestorProcesos.incrementarTiempoCPU(cpuId);
         planificador.alConsumirTick(cpuId, proceso);
         nucleo.setTicksRestantes(
@@ -557,7 +557,7 @@ public class Controlador {
 
         proceso.guardarContexto(procesador);
 
-        if (procesador.getPC() > proceso.getFinPrograma()) {
+        if (procesador.getPC() >= proceso.getTamañoPrograma()) {
 
             gestorProcesos.finalizarProcesoActual(cpuId);
 
