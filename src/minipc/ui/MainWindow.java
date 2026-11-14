@@ -21,6 +21,8 @@ import minipc.config.Configuracion;
 import minipc.controller.ContextoNucleo;
 import minipc.controller.Controlador;
 import minipc.model.*;
+import minipc.services.InformeEjecucion;
+import minipc.ui.PanelEstadisticas;
 
 /**
  * Interfaz principal del simulador Mini PC.
@@ -99,8 +101,8 @@ public class MainWindow extends JFrame {
 
     private static final String[] CAMPOS_PROCESO = {
             "PID", "CPU asignada", "Programa", "Estado", "Ubicación",
-            "Base", "Instrucciones", "Tiempo CPU (s)", "Ráfaga",
-            "Llegada ✎", "Prioridad ✎", "Restante"
+            "Base", "Instrucciones", "Tiempo de CPU (ticks)", "Ráfaga (ticks)",
+            "Llegada ✎", "Prioridad ✎", "Restante (ticks)"
     };
     private static final int SEGUNDOS_CRONOGRAMA_INICIALES = 80;
 
@@ -108,7 +110,7 @@ public class MainWindow extends JFrame {
     // INDICADORES GENERALES
     // =========================================================
 
-    private final JLabel valorReloj = new JLabel("0 s");
+    private final JLabel valorReloj = new JLabel("0 ticks");
 
     private final JLabel valorNucleos = new JLabel("1 / 5");
 
@@ -124,7 +126,6 @@ public class MainWindow extends JFrame {
 
     private final JProgressBar barraDisco = new JProgressBar();
 
-    private final JLabel estadoSimulacion = new JLabel("Listo para configurar");
 
     private final JLabel algoritmoSuperior = new JLabel("Algoritmo: sin seleccionar");
 
@@ -145,7 +146,9 @@ public class MainWindow extends JFrame {
                     TipoAlgoritmo.RR,
                     TipoAlgoritmo.PRIORIDAD,
                     TipoAlgoritmo.SELFISH_ROUND_ROBIN,
-                    TipoAlgoritmo.LOTTERY
+                    TipoAlgoritmo.LOTTERY,
+                    TipoAlgoritmo.MULTILEVEL_FEEDBACK_QUEUE,
+                    TipoAlgoritmo.GUARANTEED_SCHEDULING
             });
 
     private final JSpinner quantumRR = new JSpinner(
@@ -216,12 +219,24 @@ public class MainWindow extends JFrame {
     private final JTextArea pantalla = texto();
 
     private final JTextArea estadisticas = texto();
+    private final DefaultTableModel modeloInforme = modelo(
+            "PID", "Programa", "CPU", "Llegada", "Inicio", "Finalización",
+            "Tiempo de CPU", "Retorno", "Retorno/servicio", "Resultado",
+            "Servicio contabilizado", "Cuota justa acumulada", "Servicio/cuota justa");
+    private final DefaultTableModel modeloComparacion = modelo(
+            "#", "Algoritmo y opciones", "CPU", "RAM", "Disco", "Procesos",
+            "Tiempo", "Ocio total", "Retorno promedio", "Retorno/servicio promedio", "Carga");
+    private final JTable tablaInforme = new JTable(modeloInforme);
+    private final JTable tablaComparacion = new JTable(modeloComparacion);
+    private final List<InformeEjecucion> informesGuardados = new ArrayList<>();
+    private final java.util.Set<String> planificacionesUsadas = new java.util.LinkedHashSet<>();
+    private int ultimoTiempoRegistrado = -1;
+    private int ultimaCantidadRegistrada = -1;
 
     private final JTextField entrada = new JTextField(10);
 
-    private final JCheckBox conservar = new JCheckBox(
-            "Conservar archivos al reiniciar",
-            true);
+    private JDialog ventanaEstadisticas;
+    private PanelEstadisticas panelEstadisticas;
 
     private final JButton cargar = new JButton("Cargar ASM");
 
@@ -372,9 +387,6 @@ public class MainWindow extends JFrame {
 
     private final JTable tablaCronograma = new JTable(modeloCronograma);
 
-    private final JLabel resumenCronograma = new JLabel("0 s registrados · 1 celda = 1 segundo");
-
-    private final JCheckBox seguirCronograma = new JCheckBox("Seguir reloj", true);
 
     /** Segundo -> (CPU -> PID que consumió ese segundo). */
     private final Map<Integer, Map<Integer, Integer>> historialEjecucion = new HashMap<>();
@@ -470,7 +482,7 @@ public class MainWindow extends JFrame {
         JSplitPane contenido = new JSplitPane(
                 JSplitPane.HORIZONTAL_SPLIT,
                 izquierdaCentro,
-                crearPanelRecursosConMonitor());
+                crearPanelRecursos());
 
         configurarSplit(
                 contenido,
@@ -486,8 +498,8 @@ public class MainWindow extends JFrame {
                 contenido,
                 crearPanelCronograma());
 
-        // Reservar menos altura al cronograma para aprovechar el área superior.
-        configurarSplit(vistaCompleta, 0.82, 580);
+        // El separador permite ampliar el cronograma sin ocultar los demás paneles.
+        configurarSplit(vistaCompleta, 0.65, 470);
 
         principal.add(vistaCompleta, BorderLayout.CENTER);
 
@@ -557,24 +569,23 @@ public class MainWindow extends JFrame {
         JButton configurar = new JButton("Configuración");
 
         JButton acerca = new JButton("Acerca del dispositivo");
+        JButton verEstadisticas = new JButton("Estadísticas");
 
         JButton reiniciar = new JButton("Reiniciar");
 
         aplicarBotonSecundario(configurar);
         aplicarBotonSecundario(acerca);
+        aplicarBotonSecundario(verEstadisticas);
         aplicarBotonPrincipal(cargar);
         aplicarBotonSecundario(disco);
         aplicarBotonPeligro(reiniciar);
 
-        conservar.setOpaque(false);
-        conservar.setForeground(Color.WHITE);
-
         acciones.add(configurar);
         acciones.add(acerca);
+        acciones.add(verEstadisticas);
         acciones.add(cargar);
         acciones.add(disco);
         acciones.add(reiniciar);
-        acciones.add(conservar);
 
         barra.add(
                 identidad,
@@ -613,6 +624,7 @@ public class MainWindow extends JFrame {
 
         acerca.addActionListener(
                 e -> mostrarAcercaDispositivo());
+        verEstadisticas.addActionListener(e -> mostrarEstadisticas());
 
         reiniciar.addActionListener(e -> {
 
@@ -620,13 +632,15 @@ public class MainWindow extends JFrame {
 
             if (controlador != null) {
 
-                controlador.reiniciar(
-                        conservar.isSelected());
+                controlador.reiniciar(true);
             }
 
             nombres.clear();
             seleccionado = null;
             historialEjecucion.clear();
+            planificacionesUsadas.clear();
+            ultimoTiempoRegistrado = -1;
+            ultimaCantidadRegistrada = -1;
             cpuSeleccionada = 1;
 
             actualizar();
@@ -711,7 +725,9 @@ public class MainWindow extends JFrame {
             return;
         }
 
-        boolean editable = controlador.getTiempoSimulado() == 0
+        boolean editableHardware = controlador.getTiempoSimulado() == 0
+                && !continuarAutomatico;
+        boolean editable = controlador.puedeConfigurarPlanificacion()
                 && !continuarAutomatico;
 
         ajustandoControles = true;
@@ -723,7 +739,7 @@ public class MainWindow extends JFrame {
             ajustandoControles = false;
         }
 
-        cantidadCPU.setEnabled(editable);
+        cantidadCPU.setEnabled(editableHardware);
         algoritmos.setEnabled(editable);
         quantumRR.setEnabled(editable);
 
@@ -740,8 +756,8 @@ public class MainWindow extends JFrame {
 
         ram.setEditor(new JSpinner.NumberEditor(ram, "0"));
         almacenamiento.setEditor(new JSpinner.NumberEditor(almacenamiento, "0"));
-        ram.setEnabled(editable);
-        almacenamiento.setEnabled(editable);
+        ram.setEnabled(editableHardware);
+        almacenamiento.setEnabled(editableHardware);
         JSpinner tasaA = new JSpinner(new SpinnerNumberModel(
                 controlador.getTasaEsperaSRR(), 1, 100000, 1));
         JSpinner tasaB = new JSpinner(new SpinnerNumberModel(
@@ -752,6 +768,12 @@ public class MainWindow extends JFrame {
                 controlador.isPrioridadExpropiativa());
         expropiativo.setEnabled(editable);
         expropiativo.setOpaque(false);
+        JComboBox<TipoAlgoritmo> algoritmoQ2 = new JComboBox<>(new TipoAlgoritmo[] {
+                TipoAlgoritmo.RR, TipoAlgoritmo.FCFS, TipoAlgoritmo.SPN,
+                TipoAlgoritmo.SRT, TipoAlgoritmo.HRRN
+        });
+        algoritmoQ2.setSelectedItem(controlador.getAlgoritmoQ2());
+        algoritmoQ2.setEnabled(editable);
 
         JDialog ventana = new JDialog(this, "Configuración de la Mini PC", true);
         ventana.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
@@ -773,13 +795,15 @@ public class MainWindow extends JFrame {
         formulario.add(filaConfiguracion("Cantidad de CPU (1 a 5):", cantidadCPU));
         formulario.add(filaConfiguracion("Algoritmo de planificación:", algoritmos));
         JPanel filaModo = filaConfiguracion("Modo del algoritmo PRIORIDAD:", expropiativo);
-        JPanel filaQuantum = filaConfiguracion("Quantum RR/SRR (segundos):", quantumRR);
+        JPanel filaQuantum = filaConfiguracion("Quantum RR/SRR (ticks):", quantumRR);
         JPanel filaA = filaConfiguracion("SRR tasa espera a:", tasaA);
         JPanel filaB = filaConfiguracion("SRR tasa servicio b:", tasaB);
+        JPanel filaQ2 = filaConfiguracion("MLFQ algoritmo en Q2:", algoritmoQ2);
         formulario.add(filaModo);
         formulario.add(filaQuantum);
         formulario.add(filaA);
         formulario.add(filaB);
+        formulario.add(filaQ2);
         formulario.add(filaConfiguracion("RAM total (mínimo 500):", ram));
         formulario.add(filaConfiguracion("Almacenamiento (mínimo 500):", almacenamiento));
         Runnable mostrarOpciones = () -> {
@@ -790,6 +814,7 @@ public class MainWindow extends JFrame {
                     || seleccionado == TipoAlgoritmo.LOTTERY);
             filaA.setVisible(seleccionado == TipoAlgoritmo.SELFISH_ROUND_ROBIN);
             filaB.setVisible(seleccionado == TipoAlgoritmo.SELFISH_ROUND_ROBIN);
+            filaQ2.setVisible(seleccionado == TipoAlgoritmo.MULTILEVEL_FEEDBACK_QUEUE);
             formulario.revalidate();
             formulario.repaint();
         };
@@ -806,8 +831,9 @@ public class MainWindow extends JFrame {
 
         JLabel ayuda = new JLabel("<html><div style='width:420px'>"
                 + (editable
-                        ? "Los cambios se guardan al presionar Aplicar. "
-                        : "La simulación ya comenzó: no se permiten cambios. ")
+                        ? "La planificación se puede cambiar si ninguna CPU ejecuta un proceso. "
+                        : "Hay procesos en ejecución: la planificación no se puede cambiar. ")
+                + (editableHardware ? "" : "La RAM, el disco y las CPU solo se cambian antes de iniciar. ")
                 + "La RAM y el disco se escriben aquí; el kernel se calcula "
                 + "automáticamente y siempre deja 128 posiciones para las "
                 + "instrucciones.</div></html>");
@@ -872,7 +898,7 @@ public class MainWindow extends JFrame {
                         discoValor,
                         cpus,
                         seleccionadoAlgoritmo.name(),
-                        conservar.isSelected());
+                        true);
 
                 boolean cambiaHardware = ramValor != configuracion.getTamañoMemoria()
                         || discoValor != configuracion.getTamañoAlmacenamiento()
@@ -900,6 +926,7 @@ public class MainWindow extends JFrame {
                 }
                 controlador.configurarTasasSRR(a, b);
                 controlador.configurarExpropiacionPrioridad(expropiativo.isSelected());
+                controlador.configurarAlgoritmoQ2((TipoAlgoritmo) algoritmoQ2.getSelectedItem());
                 actualizar();
 
                 ventana.dispose();
@@ -1049,8 +1076,6 @@ public class MainWindow extends JFrame {
         configuracion = inicial;
         controlador = new Controlador(inicial);
 
-        conservar.setSelected(true);
-
         actualizar();
     }
 
@@ -1073,11 +1098,12 @@ public class MainWindow extends JFrame {
         configuracion = nueva;
         controlador = nuevo;
 
-        conservar.setSelected(nueva.isConservarArchivosAlReiniciar());
-
         nombres.clear();
         seleccionado = null;
         historialEjecucion.clear();
+        planificacionesUsadas.clear();
+        ultimoTiempoRegistrado = -1;
+        ultimaCantidadRegistrada = -1;
         cpuSeleccionada = 1;
 
         actualizar();
@@ -1172,6 +1198,7 @@ public class MainWindow extends JFrame {
         JTabbedPane estados = new JTabbedPane();
         estados.addTab("En curso", scrollTarjetas);
         estados.addTab("Finalizados", scrollFinalizados);
+        estados.addTab("Monitor", crearPanelConsola());
         panel.add(estados, BorderLayout.CENTER);
 
         return panel;
@@ -1390,7 +1417,10 @@ public class MainWindow extends JFrame {
         programa.setFont(fuenteInterfaz(Font.BOLD, 12f));
 
         JLabel estado = new JLabel(nombreGrupo(proceso.getEstado())
-                + "  ·  Restante: " + proceso.getTiempoRestante() + " s");
+                + (controlador.getAlgoritmoSeleccionado() == TipoAlgoritmo.MULTILEVEL_FEEDBACK_QUEUE
+                        && proceso.getEstado() != EstadoProceso.FINALIZADO
+                        ? " · Q" + controlador.getNivelMLFQ(proceso.getPid()) : "")
+                + "  ·  Restante: " + proceso.getTiempoRestante() + " ticks");
         estado.setForeground(TEXTO_SECUNDARIO);
         estado.setFont(fuenteInterfaz(Font.PLAIN, 11f));
 
@@ -1454,7 +1484,7 @@ public class MainWindow extends JFrame {
             }
         } else {
             JLabel llegada = new JLabel("Llegada: "
-                    + proceso.getTiempoLlegada() + " s");
+                    + proceso.getTiempoLlegada() + " ticks");
             llegada.setFont(fuenteInterfaz(Font.PLAIN, 11f));
             llegada.setForeground(TEXTO_SECUNDARIO);
 
@@ -1494,41 +1524,9 @@ public class MainWindow extends JFrame {
      */
     private JPanel crearPanelCronograma() {
 
-        JPanel panel = panelSeccion("Cronograma de ejecución · 1 columna = 1 segundo");
-
-        JPanel encabezado = new JPanel(new BorderLayout(10, 0));
-        encabezado.setOpaque(false);
-
-        JPanel leyenda = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
-        leyenda.setOpaque(false);
-
-        for (int cpuId = 1; cpuId <= COLORES_CPU.length; cpuId++) {
-            JLabel indicador = new JLabel("■ CPU " + cpuId);
-            indicador.setForeground(colorCPU(cpuId));
-            indicador.setFont(fuenteInterfaz(Font.BOLD, 11f));
-            leyenda.add(indicador);
-        }
-
-        encabezado.add(leyenda, BorderLayout.CENTER);
-
-        JPanel controles = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
-        controles.setOpaque(false);
-        seguirCronograma.setOpaque(false);
-
-        JButton volverInicio = new JButton("Inicio");
-        volverInicio.addActionListener(e -> desplazarCronograma(1));
-
-        JButton verActual = new JButton("Último segundo");
-        verActual.addActionListener(e -> desplazarCronograma(
-                controlador == null ? 1 : controlador.getTiempoSimulado()));
-
-        controles.add(resumenCronograma);
-        controles.add(seguirCronograma);
-        controles.add(volverInicio);
-        controles.add(verActual);
-
-        encabezado.add(controles, BorderLayout.EAST);
-        panel.add(encabezado, BorderLayout.NORTH);
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(PANEL);
+        panel.setBorder(BorderFactory.createLineBorder(BORDE));
 
         JScrollPane desplazamiento = new JScrollPane(tablaCronograma);
         desplazamiento.setBorder(BorderFactory.createLineBorder(BORDE));
@@ -1594,18 +1592,6 @@ public class MainWindow extends JFrame {
         JPanel panel = panelSeccion("BCP · Información del proceso seleccionado");
         pestañasBCP.setFont(fuenteInterfaz(Font.BOLD, 11f));
         panel.add(pestañasBCP, BorderLayout.CENTER);
-        return panel;
-    }
-
-    /** Sitúa la consola debajo de las pestañas RAM, Disco y Archivos. */
-    private JPanel crearPanelRecursosConMonitor() {
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.setOpaque(false);
-
-        JSplitPane division = new JSplitPane(JSplitPane.VERTICAL_SPLIT,
-                crearPanelRecursos(), crearPanelConsola());
-        configurarSplit(division, 0.60, 335);
-        panel.add(division, BorderLayout.CENTER);
         return panel;
     }
 
@@ -1792,22 +1778,12 @@ public class MainWindow extends JFrame {
         aplicarBotonExito(automatico);
         aplicarBotonSecundario(pausa);
 
-        siguiente.setText("Siguiente (+1 s)");
+        siguiente.setText("Siguiente (+1 tick)");
         automatico.setText("Ejecutar");
 
         botones.add(siguiente);
         botones.add(automatico);
         botones.add(pausa);
-
-        estadoSimulacion.setForeground(
-                TEXTO_SECUNDARIO);
-
-        estadoSimulacion.setFont(
-                fuenteInterfaz(Font.PLAIN, 11f));
-
-        panel.add(
-                estadoSimulacion,
-                BorderLayout.WEST);
 
         panel.add(
                 botones,
@@ -1941,24 +1917,46 @@ public class MainWindow extends JFrame {
                         tablaArchivos,
                         "Archivos simulados"));
 
-        JPanel panelEstadisticas = panelSeccion(
-                "Estadísticas de procesos");
-
-        estadisticas.setLineWrap(true);
-        estadisticas.setWrapStyleWord(true);
-
-        estadisticas.setBorder(
-                new EmptyBorder(12, 12, 12, 12));
-
-        panelEstadisticas.add(
-                new JScrollPane(estadisticas),
-                BorderLayout.CENTER);
-
-        pestanas.addTab(
-                "Estadísticas",
-                panelEstadisticas);
-
         return pestanas;
+    }
+
+    /* Abre el informe en una ventana amplia sin detener la simulación. La llama el botón Estadísticas. */
+    private void mostrarEstadisticas() {
+        if (ventanaEstadisticas == null) {
+            ventanaEstadisticas = new JDialog(this, "Estadísticas y comparación", false);
+            ventanaEstadisticas.setDefaultCloseOperation(JDialog.HIDE_ON_CLOSE);
+            ventanaEstadisticas.setContentPane(crearPanelEstadisticas());
+            ventanaEstadisticas.setMinimumSize(new Dimension(700, 450));
+            ventanaEstadisticas.setSize(1120, 720);
+            ventanaEstadisticas.setLocationRelativeTo(this);
+        }
+        ventanaEstadisticas.setVisible(true);
+        ventanaEstadisticas.toFront();
+    }
+
+    /* Organiza el informe actual, las comparaciones y el contexto. La llama mostrarEstadisticas. */
+    private JPanel crearPanelEstadisticas() {
+        panelEstadisticas = new PanelEstadisticas(tablaInforme, tablaComparacion,
+                estadisticas, informesGuardados, this::guardarResultadoManual);
+        if (controlador != null) panelEstadisticas.actualizar(informeActual());
+        return panelEstadisticas;
+    }
+
+    /* Guarda una ejecución finalizada sin duplicar la fotografía. Lo llama PanelEstadisticas. */
+    private void guardarResultadoManual() {
+        if (controlador == null || !controlador.simulacionFinalizada()
+                || controlador.getTiempoSimulado() <= 0
+                || controlador.getGestorProcesos().getListaTrabajos().isEmpty()) {
+            JOptionPane.showMessageDialog(ventanaEstadisticas,
+                    "Espera a que finalicen todos los procesos para guardar el resultado.");
+            return;
+        }
+        int antes = informesGuardados.size();
+        actualizarInforme();
+        JOptionPane.showMessageDialog(ventanaEstadisticas,
+                informesGuardados.size() > antes
+                        ? "Resultado guardado. Ya está disponible en Comparar."
+                        : "Esta ejecución ya estaba guardada en Comparar.");
     }
 
     private JPanel crearPanelTabla(
@@ -1977,6 +1975,81 @@ public class MainWindow extends JFrame {
                 BorderLayout.CENTER);
 
         return panel;
+    }
+
+    /* Describe la política realmente activa y sus opciones para el historial. */
+    private String descripcionPlanificacion() {
+        TipoAlgoritmo tipo = controlador.getAlgoritmoSeleccionado();
+        if (tipo == null) return "Sin seleccionar";
+        return switch (tipo) {
+            case RR, LOTTERY -> tipo + " (quantum " + controlador.getQuantumRR() + ")";
+            case SELFISH_ROUND_ROBIN -> tipo + " (q=" + controlador.getQuantumRR()
+                    + ", a=" + controlador.getTasaEsperaSRR() + ", b=" + controlador.getTasaServicioSRR() + ")";
+            case PRIORIDAD -> tipo + (controlador.isPrioridadExpropiativa() ? " (expulsivo)" : " (no expulsivo)");
+            case MULTILEVEL_FEEDBACK_QUEUE -> tipo + " (Q2=" + controlador.getAlgoritmoQ2() + ")";
+            default -> tipo.toString();
+        };
+    }
+
+    /* Construye la fotografía con las políticas usadas. La llama actualizarInforme. */
+    private InformeEjecucion informeActual() {
+        String politicas = planificacionesUsadas.isEmpty()
+                ? descripcionPlanificacion() + " (sin ejecutar)"
+                : String.join(" → ", planificacionesUsadas);
+        return InformeEjecucion.capturar(controlador, nombres, politicas);
+    }
+
+    /* Refresca la vista actual sin alterar los informes guardados. La llama MainWindow.actualizar. */
+    private void actualizarInforme() {
+        if (controlador == null) return;
+        InformeEjecucion informe = informeActual();
+        int filaSeleccionada = tablaInforme.getSelectedRow();
+        Integer pidSeleccionadoInforme = filaSeleccionada < 0 ? null
+                : (Integer) modeloInforme.getValueAt(tablaInforme.convertRowIndexToModel(filaSeleccionada), 0);
+        modeloInforme.setRowCount(0);
+        for (InformeEjecucion.Proceso p : informe.procesos) {
+            modeloInforme.addRow(new Object[] {
+                    p.pid(), p.nombre(), p.cpu() < 1 ? null : p.cpu(), p.llegada(),
+                    p.inicio() < 0 ? null : p.inicio(), p.fin() < 0 ? null : p.fin(),
+                    p.servicio(), p.estancia(), p.proporcion(),
+                    p.resultado(), p.servicioGarantizado(), p.parteJusta(), p.relacionGarantizada()
+            });
+        }
+        if (!informe.procesos.isEmpty() && controlador.simulacionFinalizada()
+                && informe.tiempo > 0
+                && (informe.tiempo != ultimoTiempoRegistrado
+                        || informe.procesos.size() != ultimaCantidadRegistrada)) {
+            ultimoTiempoRegistrado = informe.tiempo;
+            ultimaCantidadRegistrada = informe.procesos.size();
+            guardarResultado(informe);
+        }
+        if (pidSeleccionadoInforme != null) {
+            for (int i = 0; i < modeloInforme.getRowCount(); i++) {
+                if (pidSeleccionadoInforme.equals(modeloInforme.getValueAt(i, 0))) {
+                    int vista = tablaInforme.convertRowIndexToView(i);
+                    if (vista >= 0) tablaInforme.setRowSelectionInterval(vista, vista);
+                    break;
+                }
+            }
+        }
+        if (panelEstadisticas != null) panelEstadisticas.actualizar(informe);
+    }
+
+    /* Conserva una fotografía de cada ejecución finalizada. La llama actualizarInforme. */
+    private void guardarResultado(InformeEjecucion informe) {
+        informesGuardados.add(informe);
+        int ocio = informe.cpus.stream().mapToInt(InformeEjecucion.UsoCPU::ocioso).sum();
+        String comparabilidad = informesGuardados.size() == 1 ? "Referencia"
+                : !informe.cargaVerificable || !informesGuardados.get(0).cargaVerificable ? "No verificada"
+                : informe.firmaCarga.equals(informesGuardados.get(0).firmaCarga) ? "Misma carga" : "Distinta";
+        modeloComparacion.addRow(new Object[] { informesGuardados.size(), informe.algoritmos,
+                informe.cpus.size(), informe.ram, informe.disco, informe.procesos.size(), informe.tiempo,
+                ocio, InformeEjecucion.numero(informe.estanciaMedia),
+                InformeEjecucion.numero(informe.proporcionMedia), comparabilidad });
+        int fila = modeloComparacion.getRowCount() - 1;
+        int vista = tablaComparacion.convertRowIndexToView(fila);
+        if (vista >= 0) tablaComparacion.setRowSelectionInterval(vista, vista);
+        if (panelEstadisticas != null) panelEstadisticas.actualizarHistorial();
     }
 
     // =========================================================
@@ -2033,7 +2106,7 @@ public class MainWindow extends JFrame {
 
         return fuente.deriveFont(
                 estilo,
-                tamaño);
+                tamaño + 1f);
     }
 
     private void configurarSplit(
@@ -2054,13 +2127,11 @@ public class MainWindow extends JFrame {
 
     private void configurarBotones() {
 
-        conservar.setFocusPainted(false);
-
         entrada.setFont(
                 new Font(
                         Font.MONOSPACED,
                         Font.PLAIN,
-                        13));
+                        14));
 
         pantalla.setEditable(false);
     }
@@ -2148,7 +2219,7 @@ public class MainWindow extends JFrame {
                 new Font(
                         Font.MONOSPACED,
                         Font.PLAIN,
-                        13));
+                        14));
 
         return area;
     }
@@ -2371,12 +2442,12 @@ public class MainWindow extends JFrame {
         configuracion = nueva;
         controlador = nuevo;
 
-        conservar.setSelected(
-                nueva.isConservarArchivosAlReiniciar());
-
         nombres.clear();
         seleccionado = null;
         historialEjecucion.clear();
+        planificacionesUsadas.clear();
+        ultimoTiempoRegistrado = -1;
+        ultimaCantidadRegistrada = -1;
         cpuSeleccionada = 1;
 
         actualizar();
@@ -2602,18 +2673,20 @@ public class MainWindow extends JFrame {
             ajustandoControles = false;
         }
 
-        boolean configurables = listo
+        boolean hardwareConfigurable = listo
                 && controlador.getTiempoSimulado() == 0
                 && !continuarAutomatico;
+        boolean configurables = listo && controlador.puedeConfigurarPlanificacion()
+                && !continuarAutomatico;
 
-        cantidadCPU.setEnabled(configurables);
+        cantidadCPU.setEnabled(hardwareConfigurable);
         algoritmos.setEnabled(configurables);
         quantumRR.setEnabled(configurables);
 
         valorReloj.setText(
                 listo
-                        ? "RELOJ  " + controlador.getTiempoSimulado() + " s"
-                        : "RELOJ  0 s");
+                        ? "RELOJ  " + controlador.getTiempoSimulado() + " ticks"
+                        : "RELOJ  0 ticks");
 
         algoritmoSuperior.setText(
                 "Algoritmo: " + (!listo || controlador.getAlgoritmoSeleccionado() == null
@@ -2622,7 +2695,7 @@ public class MainWindow extends JFrame {
                                 + (controlador.getAlgoritmoSeleccionado() == TipoAlgoritmo.RR
                                         || controlador.getAlgoritmoSeleccionado() == TipoAlgoritmo.SELFISH_ROUND_ROBIN
                                         || controlador.getAlgoritmoSeleccionado() == TipoAlgoritmo.LOTTERY
-                                        ? " · quantum " + controlador.getQuantumRR() + " s"
+                                        ? " · quantum " + controlador.getQuantumRR() + " ticks"
                                         : "")
                                 + (controlador.getAlgoritmoSeleccionado() == TipoAlgoritmo.SELFISH_ROUND_ROBIN
                                         ? " · a=" + controlador.getTasaEsperaSRR() + " b=" + controlador.getTasaServicioSRR()
@@ -2632,36 +2705,6 @@ public class MainWindow extends JFrame {
                 listo
                         ? controlador.getCantidadCPU() + " / 5"
                         : "1 / 5");
-
-        if (!listo) {
-
-            estadoSimulacion.setText(
-                    "Carga una configuración");
-
-        } else if (continuarAutomatico) {
-
-            estadoSimulacion.setText(
-                    "En ejecución");
-
-        } else if (controlador.getTiempoSimulado() == 0) {
-
-            estadoSimulacion.setText(
-                    controlador.getAlgoritmoSeleccionado() == null
-                            ? "Selecciona un algoritmo"
-                            : "Listo para iniciar");
-
-        } else if (controlador.simulacionFinalizada()) {
-
-            estadoSimulacion.setText(
-                    "Simulación finalizada");
-
-        } else {
-
-            estadoSimulacion.setText(
-                    "Pausado en t="
-                            + controlador.getTiempoSimulado()
-                            + " s");
-        }
 
         // Botones.
         cargar.setEnabled(listo);
@@ -2863,9 +2906,9 @@ public class MainWindow extends JFrame {
                                             java.util.Locale.ROOT,
                                             "%.3f s",
                                             p.getTiempoTotalSegundos()))
-                    .append("\nTiempo CPU: ")
+                    .append("\nTiempo de CPU: ")
                     .append(p.getTiempoCPU())
-                    .append(" s")
+                    .append(" ticks")
                     .append("\n\nContexto ")
                     .append(
                             p.getHoraFinal() == null
@@ -2926,6 +2969,7 @@ public class MainWindow extends JFrame {
 
         actualizando = false;
 
+        actualizarInforme();
         actualizarCronograma();
         actualizarTarjetasProcesos();
 
@@ -3091,6 +3135,7 @@ public class MainWindow extends JFrame {
             int segundo,
             Map<Integer, Integer> tiemposAntes) {
 
+        planificacionesUsadas.add(descripcionPlanificacion());
         Map<Integer, Integer> ejecutados = new HashMap<>();
 
         for (BCP proceso : controlador.getGestorProcesos().getListaTrabajos()) {
@@ -3136,7 +3181,6 @@ public class MainWindow extends JFrame {
         pidsCronograma.clear();
 
         if (controlador == null) {
-            resumenCronograma.setText("0 s registrados");
             return;
         }
 
@@ -3178,33 +3222,6 @@ public class MainWindow extends JFrame {
             pidsCronograma.add(proceso.getPid());
         }
 
-        int segundosOcupados = 0;
-        for (Map<Integer, Integer> segundo : historialEjecucion.values()) {
-            segundosOcupados += segundo.size();
-        }
-
-        resumenCronograma.setText(
-                tiempo + " s · " + segundosOcupados + " s de CPU acumulados");
-
-        // Mantener visible el segundo reciente durante la ejecución.
-        if (tiempo > 0 && seguirCronograma.isSelected()) {
-            desplazarCronograma(tiempo);
-        }
-    }
-
-    /** Desplaza horizontalmente la línea de tiempo a un segundo. */
-    private void desplazarCronograma(int segundo) {
-
-        if (tablaCronograma.getRowCount() == 0) {
-            return;
-        }
-
-        int columna = Math.min(
-                Math.max(2, segundo + 1),
-                tablaCronograma.getColumnCount() - 1);
-
-        tablaCronograma.scrollRectToVisible(
-                tablaCronograma.getCellRect(0, columna, true));
     }
 
     /** Abre el BCP correspondiente al proceso elegido en el cronograma. */
@@ -3337,8 +3354,8 @@ public class MainWindow extends JFrame {
                 String.valueOf(
                         cpuSeleccionada.isZeroFlag()));
 
-        tiempoOcupadoCPU.setText(cpuSeleccionada.getTiempoOcupado() + " s");
-        tiempoOciosoCPU.setText(cpuSeleccionada.getTiempoOcioso() + " s");
+        tiempoOcupadoCPU.setText(cpuSeleccionada.getTiempoOcupado() + " ticks");
+        tiempoOciosoCPU.setText(cpuSeleccionada.getTiempoOcioso() + " ticks");
         tablaRam.repaint();
     }
 
@@ -3399,13 +3416,24 @@ public class MainWindow extends JFrame {
             informacion.add(crearGrupoDetalleBCP("Identificación y estado",
                     new String[][] {
                             { "Estado", p.getEstado().toString() },
-                            { "Llegada", p.getTiempoLlegada() + " s" },
+                            { "Llegada", p.getTiempoLlegada() + " ticks" },
                             { etiquetaPrioridad(), String.valueOf(p.getPrioridad()) },
-                            { "Tiempo CPU", p.getTiempoCPU() + " s" },
-                            { "Ráfaga", p.getRafaga() + " s" },
-                            { "Restante", p.getTiempoRestante() + " s" }
+                            { "Tiempo de CPU", p.getTiempoCPU() + " ticks" },
+                            { "Ráfaga", p.getRafaga() + " ticks" },
+                            { "Restante", p.getTiempoRestante() + " ticks" }
                     }));
             informacion.add(Box.createVerticalStrut(8));
+            if (controlador.getAlgoritmoSeleccionado() == TipoAlgoritmo.GUARANTEED_SCHEDULING) {
+                informacion.add(crearGrupoDetalleBCP("Reparto garantizado",
+                        new String[][] {
+                                { "Servicio contabilizado", controlador.getServicioGarantizado(p.getPid()) + " ticks" },
+                                { "Cuota justa acumulada", String.format(java.util.Locale.ROOT, "%.2f",
+                                        controlador.getParteJustaGarantizada(p.getPid())) + " ticks" },
+                                { "Servicio/cuota justa", String.format(java.util.Locale.ROOT, "%.2f",
+                                        controlador.getProporcionGarantizada(p.getPid())) }
+                        }));
+                informacion.add(Box.createVerticalStrut(8));
+            }
 
             JPanel memoriaYTiempo = crearGrupoDetalleBCP("Memoria y tiempo",
                     new String[][] {

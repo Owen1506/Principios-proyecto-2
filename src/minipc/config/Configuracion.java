@@ -72,7 +72,9 @@ public class Configuracion {
                 && seleccionado != TipoAlgoritmo.RR
                 && seleccionado != TipoAlgoritmo.PRIORIDAD
                 && seleccionado != TipoAlgoritmo.SELFISH_ROUND_ROBIN
-                && seleccionado != TipoAlgoritmo.LOTTERY) {
+                && seleccionado != TipoAlgoritmo.LOTTERY
+                && seleccionado != TipoAlgoritmo.MULTILEVEL_FEEDBACK_QUEUE
+                && seleccionado != TipoAlgoritmo.GUARANTEED_SCHEDULING) {
 
             throw new IllegalArgumentException(
                     "Algoritmo aún no implementado: "

@@ -1,5 +1,5 @@
 # Posiciones simuladas de memoria y almacenamiento.
-# Algoritmo: FCFS, SPN, SRT, HRRN, RR, PRIORIDAD o SELFISH_ROUND_ROBIN.
+# Algoritmo: FCFS, SPN, SRT, HRRN, RR, PRIORIDAD, SELFISH_ROUND_ROBIN, LOTTERY, MULTILEVEL_FEEDBACK_QUEUE o GUARANTEED_SCHEDULING.
 algoritmo=FCFS
 
 ram=256
