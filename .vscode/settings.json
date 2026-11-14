@@ -1,0 +1,7 @@
+{
+    "java.project.sourcePaths": [
+        "src"
+    ],
+    "java.project.outputPath": "build/vscode-classes",
+    "java.project.encoding": "UTF-8"
+}

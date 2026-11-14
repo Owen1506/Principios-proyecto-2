@@ -27,8 +27,10 @@ import minipc.services.FCFS;
 import minipc.services.GestorInterrupciones;
 import minipc.services.GestorMemoriaVirtual;
 import minipc.services.GestorProcesos;
+import minipc.services.GuaranteedScheduling;
 import minipc.services.HRRN;
 import minipc.services.LotteryScheduling;
+import minipc.services.MultilevelFeedbackQueue;
 import minipc.services.Prioridad;
 import minipc.services.RoundRobin;
 import minipc.services.SelfishRoundRobin;
@@ -54,6 +56,7 @@ public class Controlador {
     private GestorMemoriaVirtual gestorMemoriaVirtual;
     private AlgoritmoPlanificacion planificador;
     private int quantumRR = 3;
+    private TipoAlgoritmo algoritmoQ2 = TipoAlgoritmo.RR;
     private boolean prioridadExpropiativa = true;
     private int tasaEsperaSRR = 2;
     private int tasaServicioSRR = 1;
@@ -67,6 +70,8 @@ public class Controlador {
 
     private Configuracion configuracion;
     private final List<String> erroresEjecucion = new ArrayList<>();
+    private final java.util.Map<Integer, String> huellasProgramas = new java.util.HashMap<>();
+    private final java.util.Map<Integer, Integer> prioridadesInicialesInforme = new java.util.HashMap<>();
 
     public Controlador(int tamañoMemoria, int inicioUsuario, int tamañoAlmacenamiento, int tamañoIndice,
             int tamañoMemoriaVirtual) {
@@ -126,6 +131,10 @@ public class Controlador {
             case SRT -> new SRT(gestorProcesos);
 
             case HRRN -> new HRRN(gestorProcesos);
+
+            case GUARANTEED_SCHEDULING -> new GuaranteedScheduling(gestorProcesos);
+
+            case MULTILEVEL_FEEDBACK_QUEUE -> new MultilevelFeedbackQueue(gestorProcesos, algoritmoQ2);
 
             case LOTTERY -> new LotteryScheduling(gestorProcesos, quantumRR);
 
@@ -270,8 +279,10 @@ public class Controlador {
 
             BCP bcp = gestorProcesos.crearProcesoSuspendido(programa.size(), prioridad);
             try {
+                if (tiempoSimulado > 0) bcp.setTiempoLlegada(tiempoSimulado);
                 gestorMemoriaVirtual.guardarProcesoNuevo(bcp, programa);
                 asignarSiHayCupo(bcp);
+                huellasProgramas.put(bcp.getPid(), huellaPrograma(programa));
             } catch (RuntimeException e) {
                 gestorProcesos.descartarProcesoNuevo(bcp);
                 throw e;
@@ -284,7 +295,9 @@ public class Controlador {
         try {
             inicioPrograma = memoria.cargarPrograma(programa);
             bcp = gestorProcesos.crearProceso(inicioPrograma, programa.size(), prioridad);
+            if (tiempoSimulado > 0) bcp.setTiempoLlegada(tiempoSimulado);
             asignarSiHayCupo(bcp);
+            huellasProgramas.put(bcp.getPid(), huellaPrograma(programa));
 
             return bcp;
 
@@ -317,6 +330,12 @@ public class Controlador {
         // Admitir procesos cuyo tiempo de llegada se cumplió.
         gestorProcesos.prepararProcesosLlegados(
                 tiempoSimulado);
+
+        for (BCP proceso : gestorProcesos.getListaTrabajos()) {
+            if (proceso.getEstado() != EstadoProceso.NUEVO) {
+                prioridadesInicialesInforme.putIfAbsent(proceso.getPid(), proceso.getPrioridad());
+            }
+        }
 
         // Intentar recuperar procesos desde memoria virtual.
         intentarReactivarSuspendidos();
@@ -667,6 +686,8 @@ public class Controlador {
         tiempoSimulado = 0;
 
         erroresEjecucion.clear();
+        huellasProgramas.clear();
+        prioridadesInicialesInforme.clear();
 
         gestorMemoriaVirtual.reiniciar();
 
@@ -681,10 +702,90 @@ public class Controlador {
 
             nucleo.reiniciar();
         }
+        if (algoritmoSeleccionado == TipoAlgoritmo.MULTILEVEL_FEEDBACK_QUEUE
+                || algoritmoSeleccionado == TipoAlgoritmo.GUARANTEED_SCHEDULING) {
+            configurarAlgoritmo(algoritmoSeleccionado);
+        }
+    }
+
+    /* Identifica el programa admitido sin alterar la ejecución. La llama cargarPrograma. */
+    private static String huellaPrograma(List<Instruccion> programa) {
+        try {
+            java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+            for (Instruccion i : programa) {
+                String[] campos = { i.getOperacion(), i.getRegistro(), i.getRegistro2(),
+                        i.getServicio(), String.valueOf(i.getValor()), String.valueOf(i.getParametros()),
+                        i.getTextoOriginal(), i.getTexto(), Integer.toString(i.getPeso()) };
+                for (String campo : campos) {
+                    byte[] bytes = (campo == null ? "" : campo).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                    digest.update(java.nio.ByteBuffer.allocate(4).putInt(campo == null ? -1 : bytes.length).array());
+                    digest.update(bytes);
+                }
+            }
+            return java.util.HexFormat.of().formatHex(digest.digest());
+        } catch (java.security.NoSuchAlgorithmException error) {
+            throw new IllegalStateException("SHA-256 no está disponible.", error);
+        }
+    }
+
+    /* Proporciona la huella del programa. La llama InformeEjecucion.capturar. */
+    public String getHuellaPrograma(int pid) { return huellasProgramas.get(pid); }
+
+    /* Expone la prioridad o tickets iniciales. La llama InformeEjecucion.capturar. */
+    public Integer getPrioridadInicialInforme(int pid) { return prioridadesInicialesInforme.get(pid); }
+
+    /* Devuelve la política configurada para el último nivel de MLFQ. */
+    public TipoAlgoritmo getAlgoritmoQ2() { return algoritmoQ2; }
+
+    /* Configura Q2 cuando ninguna CPU está ejecutando y actualiza el planificador. */
+    public void configurarAlgoritmoQ2(TipoAlgoritmo tipo) {
+        if (!MultilevelFeedbackQueue.esAlgoritmoValido(tipo)) {
+            throw new IllegalArgumentException("Q2 admite FCFS, SPN, SRT, HRRN o RR.");
+        }
+        validarPlanificacionConfigurable();
+        algoritmoQ2 = tipo;
+        if (algoritmoSeleccionado == TipoAlgoritmo.MULTILEVEL_FEEDBACK_QUEUE) {
+            configurarAlgoritmo(algoritmoSeleccionado);
+        }
+    }
+
+    /* Devuelve el nivel de un proceso cuando MLFQ está activo. */
+    public int getNivelMLFQ(int pid) {
+        return planificador instanceof MultilevelFeedbackQueue mlfq ? mlfq.getNivel(pid) : -1;
+    }
+
+    /* Expone el servicio que el planificador garantizado contabilizó para el PID. */
+    public int getServicioGarantizado(int pid) {
+        return planificador instanceof GuaranteedScheduling g ? g.getServicio(pid) : 0;
+    }
+
+    /* Expone la parte justa que el planificador garantizado acumuló para el PID. */
+    public double getParteJustaGarantizada(int pid) {
+        return planificador instanceof GuaranteedScheduling g ? g.getParteJusta(pid) : 0.0;
+    }
+
+    /* Expone la proporción usada para decidir el siguiente proceso. */
+    public double getProporcionGarantizada(int pid) {
+        return planificador instanceof GuaranteedScheduling g ? g.getProporcion(pid) : 0.0;
     }
 
     public TipoAlgoritmo getAlgoritmoSeleccionado() {
         return algoritmoSeleccionado;
+    }
+
+    /* Indica si las CPU están libres para cambiar la política de planificación. */
+    public boolean puedeConfigurarPlanificacion() {
+        for (ContextoNucleo nucleo : nucleos) {
+            if (gestorProcesos.getProcesoActual(nucleo.getCpu().getId()) != null) return false;
+        }
+        return true;
+    }
+
+    /* Impide cambiar las reglas mientras alguna CPU mantiene un proceso en ejecución. */
+    private void validarPlanificacionConfigurable() {
+        if (!puedeConfigurarPlanificacion()) {
+            throw new IllegalStateException("No se puede cambiar la planificación mientras haya procesos en ejecución.");
+        }
     }
 
     public void configurarAlgoritmo(TipoAlgoritmo algoritmo) {
@@ -694,20 +795,7 @@ public class Controlador {
                     "Debe seleccionar un algoritmo de planificación.");
         }
 
-        if (tiempoSimulado > 0) {
-            throw new IllegalStateException(
-                    "No se puede cambiar el algoritmo "
-                            + "después de iniciar la simulación.");
-        }
-
-        for (BCP proceso : gestorProcesos.getListaTrabajos()) {
-
-            if (proceso.getHoraInicio() != null) {
-                throw new IllegalStateException(
-                        "No se puede cambiar el algoritmo "
-                                + "porque ya inició un proceso.");
-            }
-        }
+        validarPlanificacionConfigurable();
 
         if (algoritmo == TipoAlgoritmo.PRIORIDAD) {
             for (BCP proceso : gestorProcesos.getListaTrabajos()) {
@@ -803,12 +891,9 @@ public class Controlador {
     /* ¿Qué hace? Indica si prioridad puede interrumpir. ¿Quién lo llama? La configuración de la interfaz. */
     public boolean isPrioridadExpropiativa() { return prioridadExpropiativa; }
 
-    /* ¿Qué hace? Elige el modo antes de arrancar. ¿Quién lo llama? La configuración de la interfaz. */
+    /* Cambia el modo de prioridad cuando las CPU están libres. */
     public void configurarExpropiacionPrioridad(boolean expropia) {
-        if (tiempoSimulado != 0 || gestorProcesos.getListaTrabajos().stream()
-                .anyMatch(p -> p.getHoraInicio() != null)) {
-            throw new IllegalStateException("No se puede cambiar el modo después de iniciar.");
-        }
+        validarPlanificacionConfigurable();
         prioridadExpropiativa = expropia;
         if (planificador instanceof Prioridad prioridad) prioridad.setExpropia(expropia);
     }
@@ -905,15 +990,7 @@ public class Controlador {
                     "El quantum debe ser al menos 1.");
         }
 
-        if (tiempoSimulado != 0
-                || gestorProcesos.getListaTrabajos()
-                        .stream()
-                        .anyMatch(proceso -> proceso.getHoraInicio() != null)) {
-
-            throw new IllegalStateException(
-                    "No se puede cambiar el quantum "
-                            + "después de iniciar la ejecución.");
-        }
+        validarPlanificacionConfigurable();
 
         quantumRR = quantum;
 
@@ -931,15 +1008,12 @@ public class Controlador {
     /* ¿Qué hace? Devuelve la tasa de servicio de SRR. ¿Quién lo llama? Configuración para mostrarla. */
     public int getTasaServicioSRR() { return tasaServicioSRR; }
 
-    /* ¿Qué hace? Cambia las tasas antes de iniciar. ¿Quién lo llama? La ventana de configuración. */
+    /* Cambia las tasas de SRR cuando las CPU están libres. */
     public void configurarTasasSRR(int espera, int servicio) {
         if (servicio <= 0 || espera <= servicio) {
             throw new IllegalArgumentException("Las tasas deben cumplir 0 < b < a.");
         }
-        if (tiempoSimulado != 0 || gestorProcesos.getListaTrabajos().stream()
-                .anyMatch(proceso -> proceso.getHoraInicio() != null)) {
-            throw new IllegalStateException("No se pueden cambiar las tasas después de iniciar.");
-        }
+        validarPlanificacionConfigurable();
         tasaEsperaSRR = espera;
         tasaServicioSRR = servicio;
         if (algoritmoSeleccionado == TipoAlgoritmo.SELFISH_ROUND_ROBIN) {
