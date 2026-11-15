@@ -3,7 +3,8 @@ package minipc.services.memoria;
 import java.util.HashSet;
 import java.util.List;
 
-/** Posiciones físicas de un programa, ordenadas por posición lógica. */
+/// Representa la asignación de memoria de un programa, que consiste en una lista de posiciones físicas distintas
+/// que ocupan las posiciones lógicas del programa. La crea la estrategia de asignación
 public final class AsignacionMemoria {
     private final List<Integer> posiciones;
 

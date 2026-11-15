@@ -13,10 +13,14 @@ import minipc.model.AlgoritmoPlanificacion;
 import minipc.model.Almacenamiento;
 import minipc.model.BCP;
 import minipc.model.CPU;
+import minipc.model.ConfiguracionDinamica;
+import minipc.model.ConfiguracionMemoria;
 import minipc.model.EstadoProceso;
 import minipc.model.Instruccion;
 import minipc.model.Memoria;
+import minipc.model.MetodoAdministracionMemoria;
 import minipc.model.TipoAlgoritmo;
+import minipc.model.TipoEstrategiaMemoria;
 import minipc.parser.ASMParser;
 import minipc.parser.ASMReader;
 import minipc.parser.ASMValidator;
@@ -94,6 +98,15 @@ public class Controlador {
     }
 
     private void inicializarServicios(Configuracion configuracion) {
+
+        /*
+         * Aplica la estrategia de memoria pedida por la configuración antes de
+         * crear los servicios que guardan la referencia a Memoria.
+         * Lo llama el constructor de Controlador al iniciar la sesión.
+         */
+        if (configuracion != null) {
+            memoria.cambiarConfiguracionMemoria(configuracion.getConfiguracionMemoria());
+        }
 
         this.gestorProcesos = configuracion == null
                 ? new GestorProcesos(memoria)
@@ -268,8 +281,8 @@ public class Controlador {
         if (programa == null || programa.isEmpty()) {
             throw new IllegalArgumentException("No se puede cargar un programa vacío.");
         }
-        if (programa.size() > memoria.getSize() - memoria.getInicioUsuario()) {
-            throw new IllegalArgumentException("El programa supera toda el área de usuario de RAM.");
+        if (!memoria.puedeAlojarAlgunaVez(programa.size())) {
+            throw new IllegalArgumentException("El programa no cabe en el método de memoria configurado.");
         }
 
         if (!gestorProcesos.hayEspacioParaPrograma(programa.size())) {
@@ -827,6 +840,64 @@ public class Controlador {
                     .establecerPlanificador(nuevo);
         }
 
+    }
+
+    /*
+     * Devuelve la estrategia de asignación de memoria vigente.
+     * La usan la ventana de Configuración y el resumen del dispositivo.
+     */
+    public TipoEstrategiaMemoria getEstrategiaMemoria() {
+        return memoria.getTipoEstrategia();
+    }
+
+    public MetodoAdministracionMemoria getMetodoMemoria() {
+        return memoria.getMetodoMemoria();
+    }
+
+    public boolean puedeConfigurarMetodoMemoria() {
+        return gestorProcesos.getCantidadProcesosActivos() == 0
+                && memoria.puedeCambiarEstrategia();
+    }
+
+    public void configurarMetodoMemoria(ConfiguracionMemoria nueva) {
+        if (nueva == null) {
+            throw new IllegalArgumentException("Debe indicar una configuración de memoria.");
+        }
+        if (nueva.equals(memoria.getConfiguracionMemoria())) {
+            return;
+        }
+        if (!puedeConfigurarMetodoMemoria()) {
+            throw new IllegalStateException(
+                    "No se puede cambiar la memoria mientras haya procesos activos o suspendidos.");
+        }
+        memoria.cambiarConfiguracionMemoria(nueva);
+    }
+
+    /*
+     * Indica si la estrategia se puede cambiar sin perder programas cargados.
+     * La usa la ventana de Configuración para habilitar el selector.
+     */
+    public boolean puedeConfigurarEstrategiaMemoria() {
+        return puedeConfigurarMetodoMemoria();
+    }
+
+    /*
+     * Cambia la estrategia de memoria y deja el área de usuario vacía. Rechaza
+     * las estrategias que todavía no tienen implementación y las sesiones con
+     * programas cargados.
+     * La llama MainWindow al aplicar la configuración.
+     */
+    public void configurarEstrategiaMemoria(TipoEstrategiaMemoria tipo) {
+        if (tipo == null) {
+            throw new IllegalArgumentException(
+                    "Debe seleccionar una estrategia de asignación de memoria.");
+        }
+        if (!tipo.estaImplementada()) {
+            throw new UnsupportedOperationException(
+                    "La estrategia de memoria " + tipo
+                            + " todavía no está implementada.");
+        }
+        configurarMetodoMemoria(new ConfiguracionDinamica(tipo));
     }
 
     public void configurarLlegada(int pid, int llegada) {

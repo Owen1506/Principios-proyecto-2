@@ -19,7 +19,21 @@ public class ConfigLoader {
                 entero(propiedades, "inicioUsuario"),
                 entero(propiedades, "maxProcesosEnRam"), entero(propiedades, "maxProcesos"),
                 booleano(propiedades, "conservarArchivosAlReiniciar"),
-                valor(propiedades, "algoritmo"));
+                valor(propiedades, "algoritmo"),
+                valorOpcional(propiedades, "metodoMemoria", "DINAMICAS"),
+                valorOpcional(propiedades, "estrategiaMemoria", "FIRST_FIT"),
+                propiedades.getProperty("tamañoParticion"),
+                propiedades.getProperty("tamañosParticiones"));
+    }
+
+    /*
+     * Lee la estrategia de memoria y usa FIRST_FIT cuando la clave no existe,
+     * para que los archivos de configuración anteriores sigan funcionando.
+     * Lo llama cargar al construir Configuracion.
+     */
+    private String valorOpcional(Properties propiedades, String clave, String defecto) {
+        String valor = propiedades.getProperty(clave);
+        return valor == null || valor.trim().isEmpty() ? defecto : valor.trim();
     }
 
     private String valor(Properties propiedades, String clave) {

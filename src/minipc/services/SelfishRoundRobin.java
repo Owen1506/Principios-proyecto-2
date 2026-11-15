@@ -33,24 +33,32 @@ public class SelfishRoundRobin implements AlgoritmoPlanificacion {
         this.tasaServicio = tasaServicio;
     }
 
-    /* ¿Qué hace? Comprueba si puede competir por CPU. ¿Quién lo llama? La admisión y el cierre del tick. */
+    /*
+     * ¿Qué hace? Comprueba si puede competir por CPU. ¿Quién lo llama? La admisión
+     * y el cierre del tick.
+     */
     private boolean disponible(BCP proceso) {
         return proceso.getEstado() == EstadoProceso.PREPARADO
                 || proceso.getEstado() == EstadoProceso.EJECUCION;
     }
 
-    /* ¿Qué hace? Incorpora a quienes alcanzaron al grupo de su CPU. ¿Quién lo llama? iniciarTick(). */
+    /*
+     * ¿Qué hace? Incorpora a quienes alcanzaron al grupo de su CPU. ¿Quién lo
+     * llama? iniciarTick().
+     */
     private void admitir(int cpuId) {
         Integer umbral = null;
         BCP mejor = null;
         for (BCP p : gestor.getListaTrabajos()) {
-            if (p.getCpuAsignada() != cpuId || !disponible(p)) continue;
+            if (p.getCpuAsignada() != cpuId || !disponible(p))
+                continue;
             if (servidos.contains(p.getPid())) {
                 umbral = umbral == null ? p.getPrioridad() : Math.min(umbral, p.getPrioridad());
             } else if (mejor == null || p.getPrioridad() > mejor.getPrioridad()
                     || (p.getPrioridad() == mejor.getPrioridad()
-                    && (p.getTiempoLlegada() < mejor.getTiempoLlegada()
-                    || (p.getTiempoLlegada() == mejor.getTiempoLlegada() && p.getPid() < mejor.getPid())))) {
+                            && (p.getTiempoLlegada() < mejor.getTiempoLlegada()
+                                    || (p.getTiempoLlegada() == mejor.getTiempoLlegada()
+                                            && p.getPid() < mejor.getPid())))) {
                 mejor = p;
             }
         }
@@ -67,21 +75,30 @@ public class SelfishRoundRobin implements AlgoritmoPlanificacion {
         }
     }
 
-    /* ¿Qué hace? Prepara admisiones e incrementos una sola vez por segundo. ¿Quién lo llama? El controlador antes de las CPU. */
+    /*
+     * ¿Qué hace? Prepara admisiones e incrementos una sola vez por segundo. ¿Quién
+     * lo llama? El controlador antes de las CPU.
+     */
     @Override
     public void iniciarTick() {
         incrementos.clear();
         Set<Integer> cpus = new HashSet<>();
         for (BCP p : gestor.getListaTrabajos()) {
-            if (disponible(p) && p.getCpuAsignada() > 0) cpus.add(p.getCpuAsignada());
+            if (disponible(p) && p.getCpuAsignada() > 0)
+                cpus.add(p.getCpuAsignada());
         }
-        for (int cpu : cpus) admitir(cpu);
+        for (int cpu : cpus)
+            admitir(cpu);
         for (BCP p : gestor.getListaTrabajos()) {
-            if (disponible(p)) incrementos.put(p, servidos.contains(p.getPid()) ? tasaServicio : tasaEspera);
+            if (disponible(p))
+                incrementos.put(p, servidos.contains(p.getPid()) ? tasaServicio : tasaEspera);
         }
     }
 
-    /* ¿Qué hace? Sube las prioridades registradas sin desbordar enteros. ¿Quién lo llama? El controlador al finalizar el segundo. */
+    /*
+     * ¿Qué hace? Sube las prioridades registradas sin desbordar enteros. ¿Quién lo
+     * llama? El controlador al finalizar el segundo.
+     */
     @Override
     public void finalizarTick() {
         incrementos.forEach((p, incremento) -> p.setPrioridad((int) Math.min(
@@ -89,17 +106,24 @@ public class SelfishRoundRobin implements AlgoritmoPlanificacion {
         incrementos.clear();
     }
 
-    /* ¿Qué hace? Busca el siguiente servido de la cola. ¿Quién lo llama? El despachador y debeExpropiar(). */
+    /*
+     * ¿Qué hace? Busca el siguiente servido de la cola. ¿Quién lo llama? El
+     * despachador y debeExpropiar().
+     */
     @Override
     public BCP seleccionarSiguiente(int cpuId) {
         for (BCP p : gestor.getColaPreparados()) {
             if (p.getCpuAsignada() == cpuId && p.getEstado() == EstadoProceso.PREPARADO
-                    && servidos.contains(p.getPid())) return p;
+                    && servidos.contains(p.getPid()))
+                return p;
         }
         return null;
     }
 
-    /* ¿Qué hace? Cambia de turno al agotar el quantum si hay otro servido. ¿Quién lo llama? El controlador antes de ejecutar. */
+    /*
+     * ¿Qué hace? Cambia de turno al agotar el quantum si hay otro servido. ¿Quién
+     * lo llama? El controlador antes de ejecutar.
+     */
     @Override
     public boolean debeExpropiar(int cpuId, BCP actual) {
         return actual != null && ticksCPU.getOrDefault(cpuId, 0) >= quantum
@@ -108,9 +132,13 @@ public class SelfishRoundRobin implements AlgoritmoPlanificacion {
 
     /* ¿Qué hace? Reinicia el turno. ¿Quién lo llama? El despachador. */
     @Override
-    public void alDespachar(int cpuId, BCP proceso) { ticksCPU.put(cpuId, 0); }
+    public void alDespachar(int cpuId, BCP proceso) {
+        ticksCPU.put(cpuId, 0);
+    }
 
     /* ¿Qué hace? Cuenta el tiempo del turno. ¿Quién lo llama? El controlador. */
     @Override
-    public void alConsumirTick(int cpuId, BCP proceso) { ticksCPU.merge(cpuId, 1, Integer::sum); }
+    public void alConsumirTick(int cpuId, BCP proceso) {
+        ticksCPU.merge(cpuId, 1, Integer::sum);
+    }
 }
