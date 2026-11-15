@@ -2,6 +2,8 @@ package minipc.config;
 
 import minipc.model.BCP;
 import minipc.model.ConfiguracionDinamica;
+import minipc.model.ConfiguracionFijaIgual;
+import minipc.model.ConfiguracionFijaDiferente;
 import minipc.model.ConfiguracionMemoria;
 import minipc.model.MetodoAdministracionMemoria;
 import minipc.model.TipoAlgoritmo;
@@ -71,6 +73,17 @@ public class Configuracion {
             int maxProcesosEnRam, int maxProcesos,
             boolean conservarArchivosAlReiniciar, String algoritmo,
             String metodoMemoria, String estrategiaMemoria) {
+        this(tamañoMemoria, tamañoAlmacenamiento, tamañoMemoriaVirtual, tamañoIndice,
+                inicioUsuario, maxProcesosEnRam, maxProcesos, conservarArchivosAlReiniciar,
+                algoritmo, metodoMemoria, estrategiaMemoria, null, null);
+    }
+
+    public Configuracion(int tamañoMemoria, int tamañoAlmacenamiento,
+            int tamañoMemoriaVirtual, int tamañoIndice, int inicioUsuario,
+            int maxProcesosEnRam, int maxProcesos,
+            boolean conservarArchivosAlReiniciar, String algoritmo,
+            String metodoMemoria, String estrategiaMemoria,
+            String tamañoParticion, String tamañosParticiones) {
 
         if (algoritmo == null) {
             throw new IllegalArgumentException(
@@ -160,7 +173,28 @@ public class Configuracion {
                             + estrategiaSeleccionada);
         }
 
-        this.configuracionMemoria = new ConfiguracionDinamica(estrategiaSeleccionada);
+        if (this.metodoMemoria == MetodoAdministracionMemoria.FIJAS_IGUALES) {
+            try {
+                this.configuracionMemoria = new ConfiguracionFijaIgual(Integer.parseInt(tamañoParticion.trim()));
+            } catch (NullPointerException | NumberFormatException error) {
+                throw new IllegalArgumentException("Indique el tamaño entero de la partición.", error);
+            }
+        } else if (this.metodoMemoria == MetodoAdministracionMemoria.FIJAS_DIFERENTES) {
+            if (tamañosParticiones == null || tamañosParticiones.isBlank()) {
+                throw new IllegalArgumentException("Indique los tamaños de las particiones.");
+            }
+            java.util.List<Integer> tamaños = new java.util.ArrayList<>();
+            for (String texto : tamañosParticiones.split(",", -1)) {
+                try {
+                    tamaños.add(Integer.parseInt(texto.trim()));
+                } catch (NumberFormatException error) {
+                    throw new IllegalArgumentException("Los tamaños deben ser enteros separados por comas.", error);
+                }
+            }
+            this.configuracionMemoria = new ConfiguracionFijaDiferente(tamaños);
+        } else {
+            this.configuracionMemoria = new ConfiguracionDinamica(estrategiaSeleccionada);
+        }
 
         if (tamañoMemoria < 128 || tamañoAlmacenamiento <= 0 || tamañoIndice <= 0
                 || tamañoMemoriaVirtual < 0
@@ -177,6 +211,15 @@ public class Configuracion {
                 || maxProcesos > inicioUsuario) {
             throw new IllegalArgumentException(
                     "El kernel debe dejar espacio para el usuario, alojar los BCP y los límites deben ser positivos.");
+        }
+        int areaUsuario = tamañoMemoria - inicioUsuario;
+        if (configuracionMemoria instanceof ConfiguracionFijaIgual fija
+                && fija.tamañoParticion() > areaUsuario) {
+            throw new IllegalArgumentException("No cabe ninguna partición en el área de usuario.");
+        }
+        if (configuracionMemoria instanceof ConfiguracionFijaDiferente fija
+                && fija.tamaños().stream().mapToLong(Integer::longValue).sum() > areaUsuario) {
+            throw new IllegalArgumentException("Las particiones exceden el área de usuario.");
         }
         this.tamañoMemoria = tamañoMemoria;
         this.tamañoAlmacenamiento = tamañoAlmacenamiento;
@@ -342,7 +385,14 @@ public class Configuracion {
     public static Configuracion paraInterfaz(int ram, int disco, int cpus,
             String algoritmo, String metodoMemoria, String estrategiaMemoria,
             boolean conservarArchivosAlReiniciar) {
+        return paraInterfaz(ram, disco, cpus, algoritmo, metodoMemoria, estrategiaMemoria,
+                null, null, conservarArchivosAlReiniciar);
+    }
 
+    public static Configuracion paraInterfaz(int ram, int disco, int cpus,
+            String algoritmo, String metodoMemoria, String estrategiaMemoria,
+            String tamañoParticion, String tamañosParticiones,
+            boolean conservarArchivosAlReiniciar) {
         validarRecursos(ram, disco, cpus);
 
         int kernel = calcularKernel(ram, cpus);
@@ -359,6 +409,8 @@ public class Configuracion {
                 conservarArchivosAlReiniciar,
                 algoritmo,
                 metodoMemoria,
-                estrategiaMemoria);
+                estrategiaMemoria,
+                tamañoParticion,
+                tamañosParticiones);
     }
 }

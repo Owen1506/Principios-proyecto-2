@@ -21,7 +21,9 @@ public class ConfigLoader {
                 booleano(propiedades, "conservarArchivosAlReiniciar"),
                 valor(propiedades, "algoritmo"),
                 valorOpcional(propiedades, "metodoMemoria", "DINAMICAS"),
-                valorOpcional(propiedades, "estrategiaMemoria", "FIRST_FIT"));
+                valorOpcional(propiedades, "estrategiaMemoria", "FIRST_FIT"),
+                propiedades.getProperty("tamañoParticion"),
+                propiedades.getProperty("tamañosParticiones"));
     }
 
     /*

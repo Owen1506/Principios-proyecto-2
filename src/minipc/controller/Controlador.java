@@ -281,8 +281,8 @@ public class Controlador {
         if (programa == null || programa.isEmpty()) {
             throw new IllegalArgumentException("No se puede cargar un programa vacío.");
         }
-        if (programa.size() > memoria.getSize() - memoria.getInicioUsuario()) {
-            throw new IllegalArgumentException("El programa supera toda el área de usuario de RAM.");
+        if (!memoria.puedeAlojarAlgunaVez(programa.size())) {
+            throw new IllegalArgumentException("El programa no cabe en el método de memoria configurado.");
         }
 
         if (!gestorProcesos.hayEspacioParaPrograma(programa.size())) {

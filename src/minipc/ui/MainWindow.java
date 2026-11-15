@@ -23,6 +23,7 @@ import minipc.controller.Controlador;
 import minipc.model.*;
 import minipc.services.InformeEjecucion;
 import minipc.services.memoria.Hueco;
+import minipc.services.memoria.fija.Particion;
 import minipc.ui.PanelEstadisticas;
 
 /**
@@ -783,7 +784,9 @@ public class MainWindow extends JFrame {
          * Lo usa el botón Aplicar de esta misma ventana.
          */
         JComboBox<MetodoAdministracionMemoria> metodosMemoria = new JComboBox<>(
-                new MetodoAdministracionMemoria[] { MetodoAdministracionMemoria.DINAMICAS });
+                new MetodoAdministracionMemoria[] { MetodoAdministracionMemoria.DINAMICAS,
+                        MetodoAdministracionMemoria.FIJAS_IGUALES,
+                        MetodoAdministracionMemoria.FIJAS_DIFERENTES });
         metodosMemoria.setSelectedItem(controlador.getMetodoMemoria());
         metodosMemoria.setEnabled(editable && controlador.puedeConfigurarMetodoMemoria());
 
@@ -794,6 +797,17 @@ public class MainWindow extends JFrame {
                 ? TipoEstrategiaMemoria.FIRST_FIT
                 : estrategiaActual);
         estrategiasMemoria.setEnabled(editable && controlador.puedeConfigurarMetodoMemoria());
+        ConfiguracionMemoria memoriaActual = controlador.getMemoria().getConfiguracionMemoria();
+        int tamañoInicial = memoriaActual instanceof ConfiguracionFijaIgual fija
+                ? fija.tamañoParticion() : 32;
+        JSpinner tamañoParticion = new JSpinner(new SpinnerNumberModel(tamañoInicial, 1, 1000000, 1));
+        String tamañosIniciales = memoriaActual instanceof ConfiguracionFijaDiferente fija
+                ? fija.tamaños().stream().map(String::valueOf).collect(java.util.stream.Collectors.joining(","))
+                : "32,32";
+        JTextField tamañosParticiones = new JTextField(tamañosIniciales);
+        boolean editableMemoria = editable && controlador.puedeConfigurarMetodoMemoria();
+        tamañoParticion.setEnabled(editableMemoria);
+        tamañosParticiones.setEnabled(editableMemoria);
 
         JDialog ventana = new JDialog(this, "Configuración de la Mini PC", true);
         ventana.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
@@ -818,12 +832,55 @@ public class MainWindow extends JFrame {
         JPanel filaEstrategiaMemoria = filaConfiguracion(
                 "Algoritmo de asignación:", estrategiasMemoria);
         formulario.add(filaEstrategiaMemoria);
-        metodosMemoria.addActionListener(e -> {
+        JPanel filaIguales = filaConfiguracion("Tamaño de partición:", tamañoParticion);
+        JPanel filaDiferentes = filaConfiguracion("Tamaños separados por comas:", tamañosParticiones);
+        formulario.add(filaIguales);
+        formulario.add(filaDiferentes);
+        JLabel vistaParticiones = new JLabel(" ");
+        vistaParticiones.setForeground(TEXTO_SECUNDARIO);
+        formulario.add(vistaParticiones);
+        Runnable mostrarMemoria = () -> {
+            MetodoAdministracionMemoria metodo = (MetodoAdministracionMemoria) metodosMemoria.getSelectedItem();
             filaEstrategiaMemoria.setVisible(
-                    metodosMemoria.getSelectedItem() == MetodoAdministracionMemoria.DINAMICAS);
+                    metodo == MetodoAdministracionMemoria.DINAMICAS);
+            filaIguales.setVisible(metodo == MetodoAdministracionMemoria.FIJAS_IGUALES);
+            filaDiferentes.setVisible(metodo == MetodoAdministracionMemoria.FIJAS_DIFERENTES);
+            try {
+                int area = ((Number) ram.getValue()).intValue()
+                        - Configuracion.calcularKernel(((Number) ram.getValue()).intValue(),
+                                ((Number) cantidadCPU.getValue()).intValue());
+                if (metodo == MetodoAdministracionMemoria.FIJAS_IGUALES) {
+                    int tamaño = ((Number) tamañoParticion.getValue()).intValue();
+                    vistaParticiones.setText("Particiones: " + (area / tamaño)
+                            + " | Sobrante: " + (area % tamaño) + " posiciones");
+                } else if (metodo == MetodoAdministracionMemoria.FIJAS_DIFERENTES) {
+                    long suma = 0;
+                    for (String texto : tamañosParticiones.getText().split(",", -1)) {
+                        int tamaño = Integer.parseInt(texto.trim());
+                        if (tamaño <= 0) throw new IllegalArgumentException();
+                        suma += tamaño;
+                    }
+                    vistaParticiones.setText("Particionado: " + suma + " | Sobrante: "
+                            + (area - suma) + " posiciones");
+                } else {
+                    vistaParticiones.setText(" ");
+                }
+            } catch (RuntimeException error) {
+                vistaParticiones.setText("Revise los tamaños y recursos configurados.");
+            }
             formulario.revalidate();
             formulario.repaint();
+        };
+        metodosMemoria.addActionListener(e -> mostrarMemoria.run());
+        tamañoParticion.addChangeListener(e -> mostrarMemoria.run());
+        ram.addChangeListener(e -> mostrarMemoria.run());
+        cantidadCPU.addChangeListener(e -> mostrarMemoria.run());
+        tamañosParticiones.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { mostrarMemoria.run(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { mostrarMemoria.run(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { mostrarMemoria.run(); }
         });
+        mostrarMemoria.run();
         JPanel filaModo = filaConfiguracion("Modo del algoritmo PRIORIDAD:", expropiativo);
         JPanel filaQuantum = filaConfiguracion("Quantum RR/SRR (ticks):", quantumRR);
         JPanel filaA = filaConfiguracion("SRR tasa espera a:", tasaA);
@@ -944,6 +1001,8 @@ public class MainWindow extends JFrame {
                         seleccionadoAlgoritmo.name(),
                         metodoSeleccionado.name(),
                         seleccionadaMemoria.name(),
+                        tamañoParticion.getValue().toString(),
+                        tamañosParticiones.getText(),
                         true);
 
                 boolean cambiaHardware = ramValor != configuracion.getTamañoMemoria()
@@ -954,9 +1013,8 @@ public class MainWindow extends JFrame {
                  * No se permite cambiar el método con procesos activos,
                  * incluso cuando también se haya solicitado cambiar hardware.
                  */
-                boolean cambiaEstrategia = seleccionadaMemoria
-                        != controlador.getEstrategiaMemoria()
-                        || metodoSeleccionado != controlador.getMetodoMemoria();
+                boolean cambiaEstrategia = !nueva.getConfiguracionMemoria()
+                        .equals(controlador.getMemoria().getConfiguracionMemoria());
 
                 if (cambiaEstrategia
                         && !controlador.puedeConfigurarEstrategiaMemoria()) {
@@ -1220,8 +1278,9 @@ public class MainWindow extends JFrame {
         JLabel estrategiaMemoria = new JLabel(controlador == null
                 || controlador.getMetodoMemoria() == null
                         ? "Sin seleccionar"
-                        : controlador.getMetodoMemoria().etiqueta() + " · "
-                                + controlador.getEstrategiaMemoria());
+                        : controlador.getMetodoMemoria().etiqueta()
+                                + (controlador.getEstrategiaMemoria() == null ? ""
+                                        : " · " + controlador.getEstrategiaMemoria()));
         tarjetas.add(crearTarjetaResumen("MÉTODO DE MEMORIA", estrategiaMemoria, MORADO, null));
 
         contenido.add(tarjetas, BorderLayout.CENTER);
@@ -3074,9 +3133,11 @@ public class MainWindow extends JFrame {
 
         List<BCP> procesosEnMemoria = controlador.getGestorProcesos().getProcesosEnRAM();
         List<Hueco> huecosLibres = controlador.getMemoria().getHuecos();
+        List<Particion> particiones = controlador.getMemoria().getParticionesFijas();
         int indiceHueco = 0;
-        leyendaRam.setText("Asignación: " + controlador.getEstrategiaMemoria()
-                + " | Morado: kernel | Colores: PID | Gris: libre | Color intenso: último tick");
+        int indiceParticion = 0;
+        leyendaRam.setText("Memoria: " + controlador.getMetodoMemoria()
+                + " | PID: colores | Gris: libre | Amarillo: fragmentación | Oscuro: sobrante");
 
         for (int i = 0; i < controlador.getSizeMemoria(); i++) {
 
@@ -3099,6 +3160,26 @@ public class MainWindow extends JFrame {
                     Hueco hueco = huecosLibres.get(indiceHueco);
                     if (i >= hueco.inicio() && i < hueco.fin()) {
                         bloque = "Libre [" + hueco.inicio() + "-" + (hueco.fin() - 1) + "]";
+                    }
+                }
+                if (!particiones.isEmpty()) {
+                    while (indiceParticion < particiones.size()
+                            && i >= particiones.get(indiceParticion).fin()) {
+                        indiceParticion++;
+                    }
+                    if (indiceParticion == particiones.size()) {
+                        bloque = "No particionada";
+                    } else {
+                        Particion particion = particiones.get(indiceParticion);
+                        String rango = " P" + (indiceParticion + 1) + " ["
+                                + particion.inicio() + "-" + (particion.fin() - 1) + "]";
+                        if (particion.libre()) {
+                            bloque = "Libre" + rango;
+                        } else if (i >= particion.inicio() + particion.tamañoPrograma()) {
+                            bloque = "Fragmentación" + rango;
+                        } else {
+                            bloque += rango;
+                        }
                     }
                 }
             }
@@ -3834,6 +3915,10 @@ public class MainWindow extends JFrame {
                 componente.setBackground(MORADO_SUAVE);
             } else if (area.startsWith("Libre ")) {
                 componente.setBackground(GRIS_SUAVE);
+            } else if (area.startsWith("Fragmentación")) {
+                componente.setBackground(new Color(255, 235, 170));
+            } else if (area.equals("No particionada")) {
+                componente.setBackground(new Color(190, 195, 200));
             } else if (area.startsWith("PID ")) {
                 int finPid = area.indexOf(' ', 4);
                 int pid = Integer.parseInt(area.substring(4, finPid));

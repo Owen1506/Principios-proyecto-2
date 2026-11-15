@@ -9,6 +9,8 @@ import minipc.services.memoria.AsignacionMemoria;
 import minipc.services.memoria.EstrategiaAsignacionMemoria;
 import minipc.services.memoria.Hueco;
 import minipc.services.memoria.dinamica.AsignacionDeRegistros;
+import minipc.services.memoria.fija.GestorParticionesFijas;
+import minipc.services.memoria.fija.Particion;
 
 /**
  * Simula la memoria principal de la Mini PC.
@@ -117,6 +119,19 @@ public class Memoria {
                 }
                 yield tipo.crear(inicioUsuario, size);
             }
+            case FIJAS_IGUALES -> {
+                int tamaño = ((ConfiguracionFijaIgual) configuracion).tamañoParticion();
+                int cantidad = (size - inicioUsuario) / tamaño;
+                if (cantidad == 0) {
+                    throw new IllegalArgumentException("No cabe ninguna partición en el área de usuario.");
+                }
+                yield new GestorParticionesFijas(inicioUsuario, size,
+                        Collections.nCopies(cantidad, tamaño), false);
+            }
+            case FIJAS_DIFERENTES -> {
+                ConfiguracionFijaDiferente fija = (ConfiguracionFijaDiferente) configuracion;
+                yield new GestorParticionesFijas(inicioUsuario, size, fija.tamaños(), true);
+            }
             default -> throw new UnsupportedOperationException(
                     "El método de administración de memoria "
                             + configuracion.metodo()
@@ -209,6 +224,22 @@ public class Memoria {
         return estrategia instanceof AsignacionDeRegistros base
                 ? base.getHuecos()
                 : List.of();
+    }
+
+    // Permite distinguir una falta temporal de una solicitud imposible.
+    public boolean puedeAlojarAlgunaVez(int cantidad) {
+        if (cantidad <= 0) return false;
+        if (estrategia instanceof GestorParticionesFijas fija) {
+            return cantidad <= fija.tamañoMaximo();
+        }
+        return cantidad <= size - inicioUsuario;
+    }
+
+    public List<Particion> getParticionesFijas() {
+        if (estrategia instanceof GestorParticionesFijas fija) {
+            return fija.getParticiones();
+        }
+        return List.of();
     }
 
     public boolean puedeCambiarConfiguracion() {

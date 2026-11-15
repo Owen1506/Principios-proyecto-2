@@ -1,6 +1,7 @@
 package minipc.services.memoria.dinamica;
 
 import minipc.services.memoria.Hueco;
+import minipc.services.memoria.seleccion.SeleccionBloques;
 
 /// Estrategia Best Fit: reserva el hueco libre más pequeño que alcance.
 public final class BestFit extends AsignacionDeRegistros {
@@ -11,16 +12,6 @@ public final class BestFit extends AsignacionDeRegistros {
 
     @Override
     protected Hueco seleccionarHueco(int cantidad) {
-        Hueco mejor = null;
-
-        for (Hueco hueco : huecos()) {
-            if (hueco.alcanzaPara(cantidad)
-                    && (mejor == null || hueco.tamaño() < mejor.tamaño())) {
-                mejor = hueco;
-            }
-        }
-
-        // Si hay empate, se conserva el primero por orden de dirección.
-        return mejor;
+        return SeleccionBloques.mejor(huecos(), cantidad, Hueco::tamaño);
     }
 }
