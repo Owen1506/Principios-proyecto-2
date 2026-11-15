@@ -1,13 +1,14 @@
 package minipc.model;
 
-import java.util.List;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import minipc.services.memoria.AsignacionMemoria;
 import minipc.services.memoria.EstrategiaAsignacionMemoria;
-import minipc.services.memoria.dinamica.FirstFit;
+import minipc.services.memoria.Hueco;
+import minipc.services.memoria.dinamica.AsignacionDeRegistros;
 
 /**
  * Simula la memoria principal de la Mini PC.
@@ -25,7 +26,9 @@ public class Memoria {
     private final int size;
     private final int inicioUsuario;
 
-    private final EstrategiaAsignacionMemoria estrategia;
+    private EstrategiaAsignacionMemoria estrategia;
+    private TipoEstrategiaMemoria tipoEstrategia;
+    private ConfiguracionMemoria configuracionMemoria;
     private final Map<Integer, AsignacionMemoria> asignaciones = new HashMap<>();
     private List<BCP> areaSistema;
     private List<Instruccion> areaUsuario;
@@ -34,15 +37,42 @@ public class Memoria {
      * Crea una nueva memoria con un tamaño determinado y define
      * a partir de qué posición inicia el espacio de usuario.
      *
-     * @param size tamaño total de la memoria
+     * @param size          tamaño total de la memoria
      * @param inicioUsuario primera posición disponible para programas de usuario
      */
     public Memoria(int size, int inicioUsuario) {
-        this(size, inicioUsuario, new FirstFit(inicioUsuario, size));
+        this(size, inicioUsuario,
+                new ConfiguracionDinamica(TipoEstrategiaMemoria.FIRST_FIT));
     }
 
-    /** La estrategia administra el área de usuario [inicioUsuario, size). */
+    /*
+     * Crea la memoria con la estrategia pedida por la configuración.
+     * Se conserva para las pruebas y para el código que todavía trabaja
+     * directamente con TipoEstrategiaMemoria.
+     */
+    public Memoria(int size, int inicioUsuario, TipoEstrategiaMemoria tipo) {
+        this(size, inicioUsuario, new ConfiguracionDinamica(tipo));
+    }
+
+    /*
+     * Crea la memoria con el método y los parámetros pedidos por la
+     * configuración. La llama Controlador cuando construye la sesión.
+     */
+    public Memoria(int size, int inicioUsuario, ConfiguracionMemoria configuracion) {
+        this(size, inicioUsuario, null, configuracion);
+    }
+
+    /*
+     * Conserva la inyección directa de una estrategia para pruebas o
+     * extensiones. La llama cualquier código que ya construya su propia
+     * estrategia.
+     */
     public Memoria(int size, int inicioUsuario, EstrategiaAsignacionMemoria estrategia) {
+        this(size, inicioUsuario, estrategia, null);
+    }
+
+    private Memoria(int size, int inicioUsuario,
+            EstrategiaAsignacionMemoria estrategia, ConfiguracionMemoria configuracion) {
 
         if (size < 128) {
             throw new IllegalArgumentException("El tamaño mínimo de memoria es 128.");
@@ -52,11 +82,46 @@ public class Memoria {
             throw new IllegalArgumentException("El inicio del espacio de usuario no es válido.");
         }
 
-        if (estrategia == null) throw new IllegalArgumentException("Debe indicar una estrategia.");
+        if (estrategia == null) {
+            estrategia = crearEstrategia(configuracion, inicioUsuario, size);
+        }
+
         this.estrategia = estrategia;
+        this.configuracionMemoria = configuracion;
+        this.tipoEstrategia = configuracion == null
+                ? null
+                : configuracion.estrategia();
         this.size = size;
         this.inicioUsuario = inicioUsuario;
         reiniciar();
+    }
+
+    /**
+     * Construye la estrategia que corresponde al método configurado.
+     *
+     */
+    private static EstrategiaAsignacionMemoria crearEstrategia(
+            ConfiguracionMemoria configuracion, int inicioUsuario, int size) {
+
+        if (configuracion == null) {
+            throw new IllegalArgumentException(
+                    "Debe indicar una configuración de memoria.");
+        }
+
+        return switch (configuracion.metodo()) {
+            case DINAMICAS -> {
+                TipoEstrategiaMemoria tipo = configuracion.estrategia();
+                if (tipo == null) {
+                    throw new IllegalArgumentException(
+                            "Las particiones dinámicas requieren una estrategia.");
+                }
+                yield tipo.crear(inicioUsuario, size);
+            }
+            default -> throw new UnsupportedOperationException(
+                    "El método de administración de memoria "
+                            + configuracion.metodo()
+                            + " todavía no está implementado.");
+        };
     }
 
     public boolean hayEspacioDisponible(int cantidad) {
@@ -87,7 +152,8 @@ public class Memoria {
             }
             for (int direccion : asignacion.getPosiciones()) {
                 validarDireccionUsuario(direccion);
-                if (leer(direccion) != null) throw new IllegalStateException("La reserva se superpone con otro programa.");
+                if (leer(direccion) != null)
+                    throw new IllegalStateException("La reserva se superpone con otro programa.");
             }
         } catch (RuntimeException error) {
             estrategia.liberar(asignacion);
@@ -103,7 +169,8 @@ public class Memoria {
 
     public AsignacionMemoria getAsignacion(int inicio) {
         AsignacionMemoria asignacion = asignaciones.get(inicio);
-        if (asignacion == null) throw new IllegalArgumentException("No existe una reserva en " + inicio);
+        if (asignacion == null)
+            throw new IllegalArgumentException("No existe una reserva en " + inicio);
         return asignacion;
     }
 
@@ -120,7 +187,79 @@ public class Memoria {
         return leer(obtenerDireccionFisica(proceso, posicionLogica));
     }
 
-    public int getPosicionesLibres() { return estrategia.getPosicionesLibres(); }
+    public int getPosicionesLibres() {
+        return estrategia.getPosicionesLibres();
+    }
+
+    public TipoEstrategiaMemoria getTipoEstrategia() {
+        return tipoEstrategia;
+    }
+
+    public MetodoAdministracionMemoria getMetodoMemoria() {
+        return configuracionMemoria == null
+                ? null
+                : configuracionMemoria.metodo();
+    }
+
+    public ConfiguracionMemoria getConfiguracionMemoria() {
+        return configuracionMemoria;
+    }
+
+    public List<Hueco> getHuecos() {
+        return estrategia instanceof AsignacionDeRegistros base
+                ? base.getHuecos()
+                : List.of();
+    }
+
+    public boolean puedeCambiarConfiguracion() {
+        return asignaciones.isEmpty();
+    }
+
+    public boolean puedeCambiarEstrategia() {
+        return puedeCambiarConfiguracion();
+    }
+
+    public void cambiarConfiguracionMemoria(ConfiguracionMemoria configuracion) {
+
+        if (configuracion == null) {
+            throw new IllegalArgumentException(
+                    "Debe indicar una configuración de memoria.");
+        }
+
+        if (configuracion.equals(configuracionMemoria)) {
+            return;
+        }
+
+        if (!puedeCambiarConfiguracion()) {
+            throw new IllegalStateException(
+                    "No se puede cambiar la configuración de memoria "
+                            + "mientras haya programas cargados.");
+        }
+
+        EstrategiaAsignacionMemoria nueva = crearEstrategia(
+                configuracion, inicioUsuario, size);
+
+        this.estrategia = nueva;
+        this.configuracionMemoria = configuracion;
+        this.tipoEstrategia = configuracion.estrategia();
+        this.asignaciones.clear();
+
+        for (int i = 0; i < areaUsuario.size(); i++) {
+            areaUsuario.set(i, null);
+        }
+    }
+
+    public void cambiarEstrategia(TipoEstrategiaMemoria tipo) {
+        if (tipo == null) {
+            throw new IllegalArgumentException(
+                    "Debe indicar una estrategia de memoria.");
+        }
+        if (tipo != tipoEstrategia && !puedeCambiarConfiguracion()) {
+            throw new IllegalStateException(
+                    "No se puede cambiar la estrategia mientras haya programas cargados.");
+        }
+        cambiarConfiguracionMemoria(new ConfiguracionDinamica(tipo));
+    }
 
     /**
      * Guarda un BCP dentro del espacio reservado para el S.O.
@@ -142,7 +281,8 @@ public class Memoria {
             consecutivos = areaSistema.get(i) == null ? consecutivos + 1 : 0;
             if (consecutivos == cantidad) {
                 int inicio = i - cantidad + 1;
-                for (int j = 0; j < cantidad; j++) areaSistema.set(inicio + j, bcp);
+                for (int j = 0; j < cantidad; j++)
+                    areaSistema.set(inicio + j, bcp);
                 bcp.setDireccionBCP(inicio);
                 return inicio;
             }
@@ -200,7 +340,7 @@ public class Memoria {
     /**
      * Escribe una instrucción dentro del área de usuario.
      *
-     * @param direccion dirección donde se almacenará
+     * @param direccion   dirección donde se almacenará
      * @param instruccion instrucción que será almacenada
      */
     public void escribir(int direccion, Instruccion instruccion) {
@@ -215,7 +355,7 @@ public class Memoria {
     /**
      * Libera las posiciones utilizadas por un programa.
      *
-     * @param inicio dirección inicial del programa
+     * @param inicio         dirección inicial del programa
      * @param tamañoPrograma cantidad de posiciones ocupadas
      */
     public void liberarPrograma(int inicio, int tamañoPrograma) {
@@ -225,7 +365,8 @@ public class Memoria {
             throw new IllegalArgumentException("La cantidad no coincide con la reserva.");
         }
         estrategia.liberar(asignacion);
-        for (int direccion : asignacion.getPosiciones()) areaUsuario.set(direccion - inicioUsuario, null);
+        for (int direccion : asignacion.getPosiciones())
+            areaUsuario.set(direccion - inicioUsuario, null);
         asignaciones.remove(inicio);
     }
 

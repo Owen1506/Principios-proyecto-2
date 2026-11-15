@@ -107,8 +107,7 @@ public class Prioridad implements AlgoritmoPlanificacion {
 
         if (candidato.getTiempoLlegada() != actual.getTiempoLlegada()) {
 
-            return candidato.getTiempoLlegada()
-                    < actual.getTiempoLlegada();
+            return candidato.getTiempoLlegada() < actual.getTiempoLlegada();
         }
 
         return candidato.getPid() < actual.getPid();

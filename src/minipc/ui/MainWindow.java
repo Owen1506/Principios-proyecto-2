@@ -22,6 +22,7 @@ import minipc.controller.ContextoNucleo;
 import minipc.controller.Controlador;
 import minipc.model.*;
 import minipc.services.InformeEjecucion;
+import minipc.services.memoria.Hueco;
 import minipc.ui.PanelEstadisticas;
 
 /**
@@ -373,6 +374,7 @@ public class MainWindow extends JFrame {
     private final JTable tablaTrabajos = new JTable(trabajos);
 
     private final JTable tablaRam = new JTable(ram);
+    private final JLabel leyendaRam = new JLabel();
 
     private final JTable tablaAlmacenamiento = new JTable(almacenamiento);
 
@@ -775,6 +777,24 @@ public class MainWindow extends JFrame {
         algoritmoQ2.setSelectedItem(controlador.getAlgoritmoQ2());
         algoritmoQ2.setEnabled(editable);
 
+        /*
+         * Selector de la estrategia que administra los huecos del área de
+         * usuario. Solo se listan las estrategias implementadas.
+         * Lo usa el botón Aplicar de esta misma ventana.
+         */
+        JComboBox<MetodoAdministracionMemoria> metodosMemoria = new JComboBox<>(
+                new MetodoAdministracionMemoria[] { MetodoAdministracionMemoria.DINAMICAS });
+        metodosMemoria.setSelectedItem(controlador.getMetodoMemoria());
+        metodosMemoria.setEnabled(editable && controlador.puedeConfigurarMetodoMemoria());
+
+        JComboBox<TipoEstrategiaMemoria> estrategiasMemoria = new JComboBox<>(
+                TipoEstrategiaMemoria.values());
+        TipoEstrategiaMemoria estrategiaActual = controlador.getEstrategiaMemoria();
+        estrategiasMemoria.setSelectedItem(estrategiaActual == null
+                ? TipoEstrategiaMemoria.FIRST_FIT
+                : estrategiaActual);
+        estrategiasMemoria.setEnabled(editable && controlador.puedeConfigurarMetodoMemoria());
+
         JDialog ventana = new JDialog(this, "Configuración de la Mini PC", true);
         ventana.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
         ventana.setLayout(new BorderLayout(12, 12));
@@ -794,6 +814,16 @@ public class MainWindow extends JFrame {
 
         formulario.add(filaConfiguracion("Cantidad de CPU (1 a 5):", cantidadCPU));
         formulario.add(filaConfiguracion("Algoritmo de planificación:", algoritmos));
+        formulario.add(filaConfiguracion("Método de memoria:", metodosMemoria));
+        JPanel filaEstrategiaMemoria = filaConfiguracion(
+                "Algoritmo de asignación:", estrategiasMemoria);
+        formulario.add(filaEstrategiaMemoria);
+        metodosMemoria.addActionListener(e -> {
+            filaEstrategiaMemoria.setVisible(
+                    metodosMemoria.getSelectedItem() == MetodoAdministracionMemoria.DINAMICAS);
+            formulario.revalidate();
+            formulario.repaint();
+        });
         JPanel filaModo = filaConfiguracion("Modo del algoritmo PRIORIDAD:", expropiativo);
         JPanel filaQuantum = filaConfiguracion("Quantum RR/SRR (ticks):", quantumRR);
         JPanel filaA = filaConfiguracion("SRR tasa espera a:", tasaA);
@@ -804,7 +834,8 @@ public class MainWindow extends JFrame {
         formulario.add(filaA);
         formulario.add(filaB);
         formulario.add(filaQ2);
-        formulario.add(filaConfiguracion("RAM total (mínimo 500):", ram));
+        formulario.add(filaConfiguracion(
+                "RAM total (mínimo " + Configuracion.RAM_MINIMA + "):", ram));
         formulario.add(filaConfiguracion("Almacenamiento (mínimo 500):", almacenamiento));
         Runnable mostrarOpciones = () -> {
             TipoAlgoritmo seleccionado = (TipoAlgoritmo) algoritmos.getSelectedItem();
@@ -834,6 +865,9 @@ public class MainWindow extends JFrame {
                         ? "La planificación se puede cambiar si ninguna CPU ejecuta un proceso. "
                         : "Hay procesos en ejecución: la planificación no se puede cambiar. ")
                 + (editableHardware ? "" : "La RAM, el disco y las CPU solo se cambian antes de iniciar. ")
+                + (controlador.puedeConfigurarEstrategiaMemoria()
+                        ? "La memoria se puede configurar porque no hay procesos activos. "
+                        : "La memoria no se puede cambiar mientras haya procesos activos o suspendidos. ")
                 + "La RAM y el disco se escriben aquí; el kernel se calcula "
                 + "automáticamente y siempre deja 128 posiciones para las "
                 + "instrucciones.</div></html>");
@@ -878,6 +912,16 @@ public class MainWindow extends JFrame {
                             "Seleccione un algoritmo antes de continuar.");
                 }
 
+                TipoEstrategiaMemoria seleccionadaMemoria =
+                        (TipoEstrategiaMemoria) estrategiasMemoria.getSelectedItem();
+                MetodoAdministracionMemoria metodoSeleccionado =
+                        (MetodoAdministracionMemoria) metodosMemoria.getSelectedItem();
+
+                if (seleccionadaMemoria == null || metodoSeleccionado == null) {
+                    throw new IllegalArgumentException(
+                            "Seleccione una estrategia de memoria antes de continuar.");
+                }
+
                 int ramValor = leerEntero(ram, "La RAM");
                 int discoValor = leerEntero(almacenamiento,
                         "El almacenamiento");
@@ -898,11 +942,28 @@ public class MainWindow extends JFrame {
                         discoValor,
                         cpus,
                         seleccionadoAlgoritmo.name(),
+                        metodoSeleccionado.name(),
+                        seleccionadaMemoria.name(),
                         true);
 
                 boolean cambiaHardware = ramValor != configuracion.getTamañoMemoria()
                         || discoValor != configuracion.getTamañoAlmacenamiento()
                         || cpus != controlador.getCantidadCPU();
+
+                /*
+                 * No se permite cambiar el método con procesos activos,
+                 * incluso cuando también se haya solicitado cambiar hardware.
+                 */
+                boolean cambiaEstrategia = seleccionadaMemoria
+                        != controlador.getEstrategiaMemoria()
+                        || metodoSeleccionado != controlador.getMetodoMemoria();
+
+                if (cambiaEstrategia
+                        && !controlador.puedeConfigurarEstrategiaMemoria()) {
+                    throw new IllegalStateException(
+                            "No se puede cambiar la asignación de memoria "
+                                    + "mientras haya programas cargados.");
+                }
 
                 if (cambiaHardware && hayProcesosOArchivos()
                         && JOptionPane.showConfirmDialog(
@@ -919,6 +980,7 @@ public class MainWindow extends JFrame {
                     aplicarConfiguracion(nueva, cpus,
                             seleccionadoAlgoritmo, quantum);
                 } else {
+                    controlador.configurarMetodoMemoria(nueva.getConfiguracionMemoria());
                     controlador.configurarQuantumRR(quantum);
                     controlador.configurarAlgoritmo(seleccionadoAlgoritmo);
                     configuracion = nueva;
@@ -942,7 +1004,7 @@ public class MainWindow extends JFrame {
 
         ventana.add(contenido, BorderLayout.CENTER);
         ventana.add(botones, BorderLayout.SOUTH);
-        ventana.setSize(620, 610);
+        ventana.setSize(640, 680);
         ventana.setLocationRelativeTo(this);
         ventana.setVisible(true);
 
@@ -1136,7 +1198,7 @@ public class MainWindow extends JFrame {
         cabecera.add(subtitulo);
         contenido.add(cabecera, BorderLayout.NORTH);
 
-        JPanel tarjetas = new JPanel(new GridLayout(2, 3, 12, 12));
+        JPanel tarjetas = new JPanel(new GridLayout(2, 4, 12, 12));
         tarjetas.setOpaque(false);
 
         tarjetas.add(crearTarjetaResumen("CPU CONFIGURADAS", valorNucleos, VERDE, null));
@@ -1151,6 +1213,17 @@ public class MainWindow extends JFrame {
                         : controlador.getAlgoritmoSeleccionado().name());
         tarjetas.add(crearTarjetaResumen("ALGORITMO", algoritmo, AZUL, null));
 
+        /*
+         * Muestra la estrategia que administra los huecos del área de usuario.
+         * Lo usa el resumen del dispositivo que abre el botón Acerca de.
+         */
+        JLabel estrategiaMemoria = new JLabel(controlador == null
+                || controlador.getMetodoMemoria() == null
+                        ? "Sin seleccionar"
+                        : controlador.getMetodoMemoria().etiqueta() + " · "
+                                + controlador.getEstrategiaMemoria());
+        tarjetas.add(crearTarjetaResumen("MÉTODO DE MEMORIA", estrategiaMemoria, MORADO, null));
+
         contenido.add(tarjetas, BorderLayout.CENTER);
 
         JButton cerrar = new JButton("Cerrar");
@@ -1163,7 +1236,7 @@ public class MainWindow extends JFrame {
 
         ventana.add(contenido, BorderLayout.CENTER);
         ventana.add(pie, BorderLayout.SOUTH);
-        ventana.setSize(760, 395);
+        ventana.setSize(960, 395);
         ventana.setLocationRelativeTo(this);
         ventana.setVisible(true);
     }
@@ -1899,11 +1972,12 @@ public class MainWindow extends JFrame {
 
         JTabbedPane pestanas = new JTabbedPane();
 
-        pestanas.addTab(
-                "RAM",
-                crearPanelTabla(
-                        tablaRam,
-                        "Memoria principal"));
+        JPanel panelRam = new JPanel(new BorderLayout());
+        panelRam.add(crearPanelTabla(tablaRam, "Memoria principal"), BorderLayout.CENTER);
+        leyendaRam.setForeground(TEXTO_SECUNDARIO);
+        leyendaRam.setBorder(new EmptyBorder(3, 6, 3, 6));
+        panelRam.add(leyendaRam, BorderLayout.SOUTH);
+        pestanas.addTab("RAM", panelRam);
 
         pestanas.addTab(
                 "Disco",
@@ -2338,7 +2412,7 @@ public class MainWindow extends JFrame {
                 .getColumn(0).setPreferredWidth(70);
 
         tablaRam.getColumnModel()
-                .getColumn(1).setPreferredWidth(90);
+                .getColumn(1).setPreferredWidth(160);
 
         tablaRam.getColumnModel()
                 .getColumn(2).setPreferredWidth(280);
@@ -2998,7 +3072,36 @@ public class MainWindow extends JFrame {
 
         ram.setRowCount(0);
 
+        List<BCP> procesosEnMemoria = controlador.getGestorProcesos().getProcesosEnRAM();
+        List<Hueco> huecosLibres = controlador.getMemoria().getHuecos();
+        int indiceHueco = 0;
+        leyendaRam.setText("Asignación: " + controlador.getEstrategiaMemoria()
+                + " | Morado: kernel | Colores: PID | Gris: libre | Color intenso: último tick");
+
         for (int i = 0; i < controlador.getSizeMemoria(); i++) {
+
+            while (indiceHueco < huecosLibres.size()
+                    && i >= huecosLibres.get(indiceHueco).fin()) {
+                indiceHueco++;
+            }
+
+            String bloque = i < controlador.getInicioUsuario() ? "Kernel" : "Usuario";
+            if (i >= controlador.getInicioUsuario()) {
+                for (BCP proceso : procesosEnMemoria) {
+                    int inicio = proceso.getInicioPrograma();
+                    int fin = inicio + proceso.getTamañoPrograma();
+                    if (i >= inicio && i < fin) {
+                        bloque = "PID " + proceso.getPid() + " [" + inicio + "-" + (fin - 1) + "]";
+                        break;
+                    }
+                }
+                if (indiceHueco < huecosLibres.size()) {
+                    Hueco hueco = huecosLibres.get(indiceHueco);
+                    if (i >= hueco.inicio() && i < hueco.fin()) {
+                        bloque = "Libre [" + hueco.inicio() + "-" + (hueco.fin() - 1) + "]";
+                    }
+                }
+            }
 
             String contenido = i < controlador.getInicioUsuario()
                     ? controlador.getMemoria()
@@ -3015,9 +3118,7 @@ public class MainWindow extends JFrame {
             }
             ram.addRow(new String[] {
                     Integer.toString(i),
-                    i < controlador.getInicioUsuario()
-                            ? "Kernel"
-                            : "Usuario",
+                    bloque,
                     contenido
             });
         }
@@ -3729,12 +3830,21 @@ public class MainWindow extends JFrame {
 
             String area = table.getValueAt(row, 1).toString();
 
-            componente.setBackground(
-                    area.equals("Kernel")
-                            ? MORADO_SUAVE
-                            : Color.WHITE);
+            if (area.equals("Kernel")) {
+                componente.setBackground(MORADO_SUAVE);
+            } else if (area.startsWith("Libre ")) {
+                componente.setBackground(GRIS_SUAVE);
+            } else if (area.startsWith("PID ")) {
+                int finPid = area.indexOf(' ', 4);
+                int pid = Integer.parseInt(area.substring(4, finPid));
+                float tono = (float) ((pid * 0.61803398875) % 1.0);
+                componente.setBackground(Color.getHSBColor(tono, 0.22f, 0.97f));
+            } else {
+                componente.setBackground(Color.WHITE);
+            }
 
             componente.setForeground(TEXTO);
+            setToolTipText(area);
 
             return componente;
         }

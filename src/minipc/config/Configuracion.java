@@ -1,7 +1,11 @@
 package minipc.config;
 
 import minipc.model.BCP;
+import minipc.model.ConfiguracionDinamica;
+import minipc.model.ConfiguracionMemoria;
+import minipc.model.MetodoAdministracionMemoria;
 import minipc.model.TipoAlgoritmo;
+import minipc.model.TipoEstrategiaMemoria;
 
 public class Configuracion {
 
@@ -10,7 +14,7 @@ public class Configuracion {
      * fábrica calculen el kernel con la misma regla.
      * ¿Quién lo llama? MainWindow (inputs) y paraInterfaz().
      */
-    public static final int RAM_MINIMA = 500;
+    public static final int RAM_MINIMA = 200;
     public static final int ALMACENAMIENTO_MINIMO = 500;
     public static final int ESPACIO_INSTRUCCIONES_MINIMO = 128;
     public static final int CPUS_MAXIMAS = 5;
@@ -30,22 +34,45 @@ public class Configuracion {
     private final int maxProcesos;
     private final boolean conservarArchivosAlReiniciar;
     private final String algoritmo;
+    private final MetodoAdministracionMemoria metodoMemoria;
+    private final ConfiguracionMemoria configuracionMemoria;
+    private final String estrategiaMemoria;
 
     public Configuracion(int tamañoMemoria, int tamañoAlmacenamiento,
             int tamañoMemoriaVirtual, int tamañoIndice, int inicioUsuario,
             int maxProcesosEnRam, int maxProcesos,
             boolean conservarArchivosAlReiniciar) {
         this(tamañoMemoria, tamañoAlmacenamiento, tamañoMemoriaVirtual, tamañoIndice,
-                inicioUsuario, maxProcesosEnRam, maxProcesos, conservarArchivosAlReiniciar, "FCFS");
+                inicioUsuario, maxProcesosEnRam, maxProcesos,
+                conservarArchivosAlReiniciar, "FCFS", "DINAMICAS", "FIRST_FIT");
     }
 
     public Configuracion(int tamañoMemoria, int tamañoAlmacenamiento,
             int tamañoMemoriaVirtual, int tamañoIndice, int inicioUsuario,
             int maxProcesosEnRam, int maxProcesos,
             boolean conservarArchivosAlReiniciar, String algoritmo) {
+        this(tamañoMemoria, tamañoAlmacenamiento, tamañoMemoriaVirtual, tamañoIndice,
+                inicioUsuario, maxProcesosEnRam, maxProcesos,
+                conservarArchivosAlReiniciar, algoritmo, "DINAMICAS", "FIRST_FIT");
+    }
+
+    public Configuracion(int tamañoMemoria, int tamañoAlmacenamiento,
+            int tamañoMemoriaVirtual, int tamañoIndice, int inicioUsuario,
+            int maxProcesosEnRam, int maxProcesos,
+            boolean conservarArchivosAlReiniciar, String algoritmo,
+            String estrategiaMemoria) {
+        this(tamañoMemoria, tamañoAlmacenamiento, tamañoMemoriaVirtual, tamañoIndice,
+                inicioUsuario, maxProcesosEnRam, maxProcesos,
+                conservarArchivosAlReiniciar, algoritmo, "DINAMICAS", estrategiaMemoria);
+    }
+
+    public Configuracion(int tamañoMemoria, int tamañoAlmacenamiento,
+            int tamañoMemoriaVirtual, int tamañoIndice, int inicioUsuario,
+            int maxProcesosEnRam, int maxProcesos,
+            boolean conservarArchivosAlReiniciar, String algoritmo,
+            String metodoMemoria, String estrategiaMemoria) {
 
         if (algoritmo == null) {
-
             throw new IllegalArgumentException(
                     "Debe indicar el algoritmo de planificación.");
         }
@@ -55,11 +82,8 @@ public class Configuracion {
         TipoAlgoritmo seleccionado;
 
         try {
-
             seleccionado = TipoAlgoritmo.valueOf(this.algoritmo);
-
         } catch (IllegalArgumentException error) {
-
             throw new IllegalArgumentException(
                     "Algoritmo desconocido: " + algoritmo,
                     error);
@@ -80,7 +104,64 @@ public class Configuracion {
                     "Algoritmo aún no implementado: "
                             + seleccionado);
         }
-        // this.algoritmo = algoritmo.trim().toUpperCase(java.util.Locale.ROOT);
+
+        /*
+         * Normaliza el método de memoria. Si la clave no viene en el archivo
+         * de configuración, se asume DINAMICAS para que los archivos
+         * anteriores a esta fase sigan funcionando.
+         */
+        String metodoTexto = metodoMemoria == null
+                ? ""
+                : metodoMemoria.trim().toUpperCase(java.util.Locale.ROOT);
+
+        if (metodoTexto.isEmpty()) {
+            this.metodoMemoria = MetodoAdministracionMemoria.DINAMICAS;
+        } else {
+            try {
+                this.metodoMemoria = MetodoAdministracionMemoria.valueOf(metodoTexto);
+            } catch (IllegalArgumentException error) {
+                throw new IllegalArgumentException(
+                        "Método de memoria desconocido: " + metodoMemoria,
+                        error);
+            }
+        }
+
+        if (!this.metodoMemoria.estaImplementado()) {
+            throw new IllegalArgumentException(
+                    "Método de memoria aún no implementado: "
+                            + this.metodoMemoria);
+        }
+
+        /*
+         * En esta fase el único método implementado es DINAMICAS, así que la
+         * estrategia de selección sigue siendo obligatoria. Se valida con la
+         * misma regla que el algoritmo: solo se aceptan las que ya existen.
+         */
+        if (estrategiaMemoria == null) {
+            throw new IllegalArgumentException(
+                    "Debe indicar la estrategia de asignación de memoria.");
+        }
+        this.estrategiaMemoria = estrategiaMemoria.trim()
+                .toUpperCase(java.util.Locale.ROOT);
+
+        TipoEstrategiaMemoria estrategiaSeleccionada;
+
+        try {
+            estrategiaSeleccionada = TipoEstrategiaMemoria.valueOf(this.estrategiaMemoria);
+        } catch (IllegalArgumentException error) {
+            throw new IllegalArgumentException(
+                    "Estrategia de memoria desconocida: " + estrategiaMemoria,
+                    error);
+        }
+
+        if (!estrategiaSeleccionada.estaImplementada()) {
+            throw new IllegalArgumentException(
+                    "Estrategia de memoria aún no implementada: "
+                            + estrategiaSeleccionada);
+        }
+
+        this.configuracionMemoria = new ConfiguracionDinamica(estrategiaSeleccionada);
+
         if (tamañoMemoria < 128 || tamañoAlmacenamiento <= 0 || tamañoIndice <= 0
                 || tamañoMemoriaVirtual < 0
                 || (long) tamañoIndice + tamañoMemoriaVirtual >= tamañoAlmacenamiento) {
@@ -113,6 +194,30 @@ public class Configuracion {
 
     public String getAlgoritmo() {
         return algoritmo;
+    }
+
+    public MetodoAdministracionMemoria getMetodoMemoria() {
+        return metodoMemoria;
+    }
+
+    public ConfiguracionMemoria getConfiguracionMemoria() {
+        return configuracionMemoria;
+    }
+
+    /*
+     * Devuelve el nombre persistido de la estrategia de memoria.
+     * Lo usan la interfaz y ConfigLoader al leer la configuración.
+     */
+    public String getEstrategiaMemoria() {
+        return estrategiaMemoria;
+    }
+
+    /*
+     * Devuelve la estrategia ya convertida a enum para la fábrica de Memoria.
+     * Lo usa Controlador al inicializar y al cambiar la asignación de memoria.
+     */
+    public TipoEstrategiaMemoria getTipoEstrategiaMemoria() {
+        return TipoEstrategiaMemoria.valueOf(estrategiaMemoria);
     }
 
     public int getTamañoAlmacenamiento() {
@@ -218,6 +323,25 @@ public class Configuracion {
      */
     public static Configuracion paraInterfaz(int ram, int disco, int cpus,
             String algoritmo, boolean conservarArchivosAlReiniciar) {
+        return paraInterfaz(ram, disco, cpus, algoritmo, "FIRST_FIT",
+                conservarArchivosAlReiniciar);
+    }
+
+    /*
+     * Arma la configuración con la estrategia de memoria elegida en la ventana.
+     * La usa MainWindow al pulsar Aplicar y al arrancar la sesión por defecto.
+     */
+    public static Configuracion paraInterfaz(int ram, int disco, int cpus,
+            String algoritmo, String estrategiaMemoria,
+            boolean conservarArchivosAlReiniciar) {
+
+        return paraInterfaz(ram, disco, cpus, algoritmo, "DINAMICAS",
+                estrategiaMemoria, conservarArchivosAlReiniciar);
+    }
+
+    public static Configuracion paraInterfaz(int ram, int disco, int cpus,
+            String algoritmo, String metodoMemoria, String estrategiaMemoria,
+            boolean conservarArchivosAlReiniciar) {
 
         validarRecursos(ram, disco, cpus);
 
@@ -233,6 +357,8 @@ public class Configuracion {
                 maxProcesos,
                 maxProcesos,
                 conservarArchivosAlReiniciar,
-                algoritmo);
+                algoritmo,
+                metodoMemoria,
+                estrategiaMemoria);
     }
 }
