@@ -17,6 +17,36 @@ estadísticas de ejecución.
 
 ---
 
+## Estado de los requisitos
+
+| Requisito | Estado |
+|---|---|
+| Ejecución de programas ASM | ✅ Logrado |
+| Ejecución manual y automática | ✅ Logrado |
+| Hasta 5 CPU | ✅ Logrado |
+| Algoritmos de planificación de CPU (10) | ✅ Logrado |
+| Tiempos de llegada y ráfaga | ✅ Logrado |
+| Carga múltiple y validación de errores | ✅ Logrado |
+| Finalización de procesos | ✅ Logrado |
+| Estadísticas por proceso | ✅ Logrado |
+| Interrupciones | ✅ Logrado |
+| Reinicio coordinado | ✅ Logrado |
+| Servicios de archivos | ✅ Logrado |
+| Entrada y salida | ✅ Logrado |
+| Almacenamiento simulado | ✅ Logrado |
+| Memoria principal y kernel | ✅ Logrado |
+| Memoria virtual (intercambio completo) | ✅ Logrado |
+| Particiones dinámicas (First/Next/Best Fit) | ✅ Logrado |
+| Particiones fijas iguales | ✅ Logrado |
+| Particiones fijas diferentes | ✅ Logrado |
+| Paginación simple | ✅ Logrado |
+| Paginación virtual | ✅ Logrado |
+| Visualización de RAM por bloques | ✅ Logrado |
+| Valoración del proyecto | ✅ Logrado |
+| Video de la aplicación | ⚠️ Pendiente de verificación |
+| Verificación integral desde la interfaz | ⚠️ Pendiente |
+| Pruebas completas de archivos y estados | ⚠️ Pendiente |
+
 ## Características principales
 
 - **Ejecución de programas ASM:** lectura, validación sintáctica, interpretación y ejecución de instrucciones.
