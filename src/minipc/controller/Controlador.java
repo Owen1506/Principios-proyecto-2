@@ -12,6 +12,7 @@ import minipc.config.Configuracion;
 import minipc.model.AlgoritmoPlanificacion;
 import minipc.model.Almacenamiento;
 import minipc.model.BCP;
+import minipc.model.ConfiguracionPaginacion;
 import minipc.model.CPU;
 import minipc.model.ConfiguracionDinamica;
 import minipc.model.ConfiguracionMemoria;
@@ -30,6 +31,8 @@ import minipc.services.Executor;
 import minipc.services.FCFS;
 import minipc.services.GestorInterrupciones;
 import minipc.services.GestorMemoriaVirtual;
+import minipc.services.memoria.EstrategiaAsignacionMemoria;
+import minipc.services.memoria.paginacion.GestorPaginasVirtuales;
 import minipc.services.GestorProcesos;
 import minipc.services.GuaranteedScheduling;
 import minipc.services.HRRN;
@@ -80,8 +83,8 @@ public class Controlador {
     public Controlador(int tamañoMemoria, int inicioUsuario, int tamañoAlmacenamiento, int tamañoIndice,
             int tamañoMemoriaVirtual) {
 
-        this.memoria = new Memoria(tamañoMemoria, inicioUsuario);
         this.almacenamiento = new Almacenamiento(tamañoAlmacenamiento, tamañoIndice, tamañoMemoriaVirtual);
+        this.memoria = new Memoria(tamañoMemoria, inicioUsuario, almacenamiento);
         inicializarServicios(null);
     }
 
@@ -669,17 +672,26 @@ public class Controlador {
         return proceso;
     }
 
-    private void intentarReactivarSuspendidos() {
+    public void intentarReactivarSuspendidos() {
         boolean procesoReactivado;
         do {
             procesoReactivado = false;
             for (BCP bcp : gestorProcesos.getListaTrabajos()) {
-                if (bcp.getEstado() == EstadoProceso.PREPARADO_SUSPENDIDO
-                        && gestorMemoriaVirtual.estaEnMemoriaVirtual(bcp)
-                        && gestorProcesos.hayEspacioParaPrograma(bcp.getTamañoPrograma())) {
-                    gestorMemoriaVirtual.reactivarProceso(bcp);
-                    procesoReactivado = true;
-                    break;
+                if (bcp.getEstado() == EstadoProceso.PREPARADO_SUSPENDIDO) {
+                    if (esPaginacionVirtual() && bcp.getAsignacionMemoria() != null) {
+                        bcp.setEstado(EstadoProceso.PREPARADO);
+                        if (!gestorProcesos.getColaPreparados().contains(bcp)) {
+                            gestorProcesos.getColaPreparados().add(bcp);
+                        }
+                        procesoReactivado = true;
+                        break;
+                    } else if (!esPaginacionVirtual()
+                            && gestorMemoriaVirtual.estaEnMemoriaVirtual(bcp)
+                            && gestorProcesos.hayEspacioParaPrograma(bcp.getTamañoPrograma())) {
+                        gestorMemoriaVirtual.reactivarProceso(bcp);
+                        procesoReactivado = true;
+                        break;
+                    }
                 }
             }
         } while (procesoReactivado);
@@ -691,6 +703,14 @@ public class Controlador {
 
     public void suspenderProceso(int pid) {
         BCP proceso = gestorProcesos.buscarProceso(pid);
+        if (esPaginacionVirtual()) {
+            if (proceso.getAsignacionMemoria() != null) {
+                ((GestorPaginasVirtuales) memoria.getEstrategia()).evictResident(proceso.getAsignacionMemoria());
+            }
+            proceso.setEstado(EstadoProceso.PREPARADO_SUSPENDIDO);
+            gestorProcesos.getColaPreparados().remove(proceso);
+            return;
+        }
         gestorMemoriaVirtual.suspenderProceso(proceso);
     }
 
@@ -1111,6 +1131,10 @@ public class Controlador {
         return memoria;
     }
 
+    public GestorPaginasVirtuales getGestorPaginasVirtuales() {
+        return memoria.getEstrategia() instanceof GestorPaginasVirtuales virtual ? virtual : null;
+    }
+
     public Almacenamiento getAlmacenamiento() {
         return almacenamiento;
     }
@@ -1121,6 +1145,12 @@ public class Controlador {
 
     public GestorMemoriaVirtual getGestorMemoriaVirtual() {
         return gestorMemoriaVirtual;
+    }
+
+    public boolean esPaginacionVirtual() {
+        return memoria.getMetodoMemoria() == MetodoAdministracionMemoria.PAGINACION
+                && memoria.getConfiguracionMemoria() instanceof ConfiguracionPaginacion paginacion
+                && paginacion.virtual();
     }
 
     public GestorInterrupciones getGestorInterrupciones() {

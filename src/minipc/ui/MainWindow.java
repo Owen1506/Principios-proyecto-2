@@ -25,6 +25,7 @@ import minipc.services.InformeEjecucion;
 import minipc.services.memoria.Hueco;
 import minipc.services.memoria.fija.Particion;
 import minipc.services.memoria.paginacion.EntradaPagina;
+import minipc.services.memoria.paginacion.GestorPaginasVirtuales;
 import minipc.services.memoria.paginacion.Marco;
 import minipc.services.memoria.paginacion.TablaPaginas;
 import minipc.ui.PanelEstadisticas;
@@ -808,6 +809,9 @@ public class MainWindow extends JFrame {
                 ? paginacion.tamañoPagina() : ConfiguracionPaginacion.TAMAÑO_POR_DEFECTO;
         JSpinner tamañoPagina = new JSpinner(new SpinnerNumberModel(paginaInicial, 1, 1073741824, 1));
         tamañoPagina.setEnabled(editableMemoria);
+        boolean virtualInicial = memoriaActual instanceof ConfiguracionPaginacion paginacion && paginacion.virtual();
+        JCheckBox memoriaVirtualPaginas = new JCheckBox("Memoria virtual (carga por demanda)", virtualInicial);
+        memoriaVirtualPaginas.setEnabled(editableMemoria);
 
         JDialog ventana = new JDialog(this, "Configuración de la Mini PC", true);
         ventana.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
@@ -837,7 +841,9 @@ public class MainWindow extends JFrame {
         formulario.add(filaIguales);
         formulario.add(filaDiferentes);
         JPanel filaPaginacion = filaConfiguracion("Tamaño de página (potencia de 2):", tamañoPagina);
+        JPanel filaVirtual = filaConfiguracion("Memoria virtual:", memoriaVirtualPaginas);
         formulario.add(filaPaginacion);
+        formulario.add(filaVirtual);
         JLabel vistaParticiones = new JLabel(" ");
         vistaParticiones.setForeground(TEXTO_SECUNDARIO);
         formulario.add(vistaParticiones);
@@ -848,6 +854,7 @@ public class MainWindow extends JFrame {
             filaIguales.setVisible(metodo == MetodoAdministracionMemoria.FIJAS_IGUALES);
             filaDiferentes.setVisible(metodo == MetodoAdministracionMemoria.FIJAS_DIFERENTES);
             filaPaginacion.setVisible(metodo == MetodoAdministracionMemoria.PAGINACION);
+            filaVirtual.setVisible(metodo == MetodoAdministracionMemoria.PAGINACION);
             try {
                 int area = ((Number) ram.getValue()).intValue()
                         - Configuracion.calcularKernel(((Number) ram.getValue()).intValue(),
@@ -1015,6 +1022,8 @@ public class MainWindow extends JFrame {
                         tamañoParticion.getValue().toString(),
                         tamañosParticiones.getText(),
                         Integer.toString(paginaValor),
+                        Boolean.toString(metodoSeleccionado == MetodoAdministracionMemoria.PAGINACION
+                                && memoriaVirtualPaginas.isSelected()),
                         true);
 
                 boolean cambiaHardware = ramValor != configuracion.getTamañoMemoria()
@@ -3182,14 +3191,21 @@ public class MainWindow extends JFrame {
         Map<Integer, BCP> dueñosMarcos = new HashMap<>();
         Map<Integer, EntradaPagina> paginasPorMarco = new HashMap<>();
         for (BCP proceso : procesosEnMemoria) {
-            for (int direccion : proceso.getAsignacionMemoria().getPosiciones()) {
-                dueñosPosiciones.put(direccion, proceso);
+            if (!(controlador.getMemoria().getConfiguracionMemoria() instanceof ConfiguracionPaginacion paginacion && paginacion.virtual())) {
+                for (int direccion : proceso.getAsignacionMemoria().getPosiciones()) {
+                    dueñosPosiciones.put(direccion, proceso);
+                }
             }
             TablaPaginas tabla = controlador.getMemoria().getTablaPaginas(proceso);
             if (tabla != null) {
                 for (EntradaPagina pagina : tabla.getEntradas()) {
                     dueñosMarcos.put(pagina.marco(), proceso);
                     paginasPorMarco.put(pagina.marco(), pagina);
+                }
+            }
+            for (GestorPaginasVirtuales.EstadoPagina pagina : controlador.getMemoria().getPaginasVirtuales(proceso)) {
+                if (pagina.presente()) {
+                    dueñosMarcos.put(pagina.marco(), proceso);
                 }
             }
         }
@@ -3208,11 +3224,21 @@ public class MainWindow extends JFrame {
         if (controlador.getMemoria().getConfiguracionMemoria() instanceof ConfiguracionPaginacion paginacion) {
             long libres = marcosFisicos.stream().filter(Marco::libre).count();
             int fragmentacion = marcosFisicos.stream().mapToInt(Marco::fragmentacionInterna).sum();
-            leyendaRam.setText("<html>Paginación simple · página: " + paginacion.tamañoPagina()
-                    + " | Marcos libres: " + libres + " / " + marcosFisicos.size()
-                    + "<br>Fragmentación interna: " + fragmentacion
-                    + " | Sobrante sin marco: " + controlador.getMemoria().getSobrantePaginacion()
-                    + " | Tablas de páginas en Ver BCP</html>");
+            if (paginacion.virtual()) {
+                leyendaRam.setText("<html>Paginación virtual · página: " + paginacion.tamañoPagina()
+                        + " | Marcos residentes: " + (marcosFisicos.size() - libres) + " / " + marcosFisicos.size()
+                        + " | Fallos: " + controlador.getMemoria().getFallosPaginacionVirtual()
+                        + " | Reemplazos: " + controlador.getMemoria().getReemplazosPaginacionVirtual()
+                        + "<br>Fragmentación interna: " + fragmentacion
+                        + " | Sobrante sin marco: " + controlador.getMemoria().getSobrantePaginacion()
+                        + " | Páginas en Ver BCP</html>");
+            } else {
+                leyendaRam.setText("<html>Paginación simple · página: " + paginacion.tamañoPagina()
+                        + " | Marcos libres: " + libres + " / " + marcosFisicos.size()
+                        + "<br>Fragmentación interna: " + fragmentacion
+                        + " | Sobrante sin marco: " + controlador.getMemoria().getSobrantePaginacion()
+                        + " | Tablas de páginas en Ver BCP</html>");
+            }
         }
 
         for (int i = 0; i < controlador.getSizeMemoria(); i++) {
@@ -3763,6 +3789,10 @@ public class MainWindow extends JFrame {
     }
 
     private String posicionFisicaDetalle(BCP proceso, boolean ultima) {
+        if (controlador.getMemoria().getConfiguracionMemoria() instanceof ConfiguracionPaginacion paginacion
+                && paginacion.virtual()) {
+            return "virtual";
+        }
         if (controlador.getMetodoMemoria() == MetodoAdministracionMemoria.PAGINACION
                 && controlador.getMemoria().getTablaPaginas(proceso) == null) {
             return "—";
@@ -3773,19 +3803,36 @@ public class MainWindow extends JFrame {
     /** Muestra las páginas sin cargar ni modificar la memoria al consultar el BCP. */
     private JPanel crearTablaPaginas(BCP proceso, ConfiguracionPaginacion configuracionPagina) {
         DefaultTableModel modeloPaginas = modelo("Página", "Lógica", "Marco", "Física", "Estado");
-        TablaPaginas tabla = controlador.getMemoria().getTablaPaginas(proceso);
         int tamaño = configuracionPagina.tamañoPagina();
         int cantidad = (int) (((long) proceso.getTamañoPrograma() + tamaño - 1) / tamaño);
-        int inicioVirtual = controlador.getGestorMemoriaVirtual().getDireccionVirtual(proceso);
-        for (int pagina = 0; pagina < cantidad; pagina++) {
-            int inicio = pagina * tamaño;
-            int fin = Math.min(proceso.getTamañoPrograma(), inicio + tamaño) - 1;
-            EntradaPagina entrada = tabla == null ? null : tabla.getEntradas().get(pagina);
-            modeloPaginas.addRow(new Object[] { pagina, inicio + "–" + fin,
-                    entrada == null ? "—" : entrada.marco(),
-                    entrada == null ? "—" : entrada.inicioMarco() + "–"
-                            + (entrada.inicioMarco() + entrada.instrucciones() - 1),
-                    entrada != null ? "RAM" : inicioVirtual >= 0 ? "Secundaria" : "Liberada" });
+        List<GestorPaginasVirtuales.EstadoPagina> paginasVirtuales =
+                controlador.getMemoria().getPaginasVirtuales(proceso);
+        if (!paginasVirtuales.isEmpty()) {
+            for (GestorPaginasVirtuales.EstadoPagina entrada : paginasVirtuales) {
+                int inicio = entrada.pagina() * tamaño;
+                int fin = Math.min(proceso.getTamañoPrograma(), inicio + tamaño) - 1;
+                modeloPaginas.addRow(new Object[] { entrada.pagina(), inicio + "–" + fin,
+                        entrada.presente() ? entrada.marco() : "—",
+                        entrada.presente() ? (controlador.getInicioUsuario()
+                                + entrada.marco() * tamaño) + "–"
+                                + (controlador.getInicioUsuario() + entrada.marco() * tamaño
+                                        + Math.min(tamaño, proceso.getTamañoPrograma() - inicio) - 1)
+                                : "virtual " + entrada.direccionVirtual(),
+                        entrada.presente() ? "RAM" : "Secundaria" });
+            }
+        } else {
+            TablaPaginas tabla = controlador.getMemoria().getTablaPaginas(proceso);
+            int inicioVirtual = controlador.getGestorMemoriaVirtual().getDireccionVirtual(proceso);
+            for (int pagina = 0; pagina < cantidad; pagina++) {
+                int inicio = pagina * tamaño;
+                int fin = Math.min(proceso.getTamañoPrograma(), inicio + tamaño) - 1;
+                EntradaPagina entrada = tabla == null ? null : tabla.getEntradas().get(pagina);
+                modeloPaginas.addRow(new Object[] { pagina, inicio + "–" + fin,
+                        entrada == null ? "—" : entrada.marco(),
+                        entrada == null ? "—" : entrada.inicioMarco() + "–"
+                                + (entrada.inicioMarco() + entrada.instrucciones() - 1),
+                        entrada != null ? "RAM" : inicioVirtual >= 0 ? "Secundaria" : "Liberada" });
+            }
         }
         JTable vista = new JTable(modeloPaginas);
         vista.setRowHeight(28);
@@ -3793,10 +3840,10 @@ public class MainWindow extends JFrame {
         vista.getTableHeader().setReorderingAllowed(false);
         JPanel panel = new JPanel(new BorderLayout(4, 8));
         panel.setBackground(PANEL);
-        JLabel descripcion = new JLabel("<html>Página y marco: " + tamaño + " posiciones. "
-                + (tabla != null ? "Fragmentación interna: " + tabla.getFragmentacionInterna()
-                        : inicioVirtual >= 0 ? "Proceso completo en secundaria desde " + inicioVirtual
-                        : "Sin marcos asignados") + ".</html>");
+        JLabel descripcion = new JLabel("<html>Página: " + tamaño + " posiciones. "
+                + (paginasVirtuales.isEmpty()
+                        ? "Paginación simple; tablas de páginas en Ver BCP."
+                        : "Paginación virtual; páginas ausentes se cargan bajo demanda con FIFO.") + "</html>");
         descripcion.setBorder(new EmptyBorder(8, 8, 4, 8));
         panel.add(descripcion, BorderLayout.NORTH);
         panel.add(new JScrollPane(vista), BorderLayout.CENTER);

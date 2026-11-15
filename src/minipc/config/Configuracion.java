@@ -88,7 +88,7 @@ public class Configuracion {
         this(tamañoMemoria, tamañoAlmacenamiento, tamañoMemoriaVirtual, tamañoIndice,
                 inicioUsuario, maxProcesosEnRam, maxProcesos, conservarArchivosAlReiniciar,
                 algoritmo, metodoMemoria, estrategiaMemoria, tamañoParticion, tamañosParticiones,
-                Integer.toString(ConfiguracionPaginacion.TAMAÑO_POR_DEFECTO));
+                Integer.toString(ConfiguracionPaginacion.TAMAÑO_POR_DEFECTO), "false");
     }
 
     public Configuracion(int tamañoMemoria, int tamañoAlmacenamiento,
@@ -96,7 +96,8 @@ public class Configuracion {
             int maxProcesosEnRam, int maxProcesos,
             boolean conservarArchivosAlReiniciar, String algoritmo,
             String metodoMemoria, String estrategiaMemoria,
-            String tamañoParticion, String tamañosParticiones, String tamañoPagina) {
+            String tamañoParticion, String tamañosParticiones, String tamañoPagina,
+            String paginacionVirtual) {
 
         if (algoritmo == null) {
             throw new IllegalArgumentException(
@@ -184,7 +185,10 @@ public class Configuracion {
 
         if (this.metodoMemoria == MetodoAdministracionMemoria.PAGINACION) {
             try {
-                this.configuracionMemoria = new ConfiguracionPaginacion(Integer.parseInt(tamañoPagina.trim()));
+                boolean virtual = paginacionVirtual != null
+                        && paginacionVirtual.trim().equalsIgnoreCase("true");
+                this.configuracionMemoria = new ConfiguracionPaginacion(
+                        Integer.parseInt(tamañoPagina.trim()), virtual);
             } catch (NullPointerException | NumberFormatException error) {
                 throw new IllegalArgumentException("Indique el tamaño entero de la página.", error);
             }
@@ -405,7 +409,8 @@ public class Configuracion {
             String algoritmo, String metodoMemoria, String estrategiaMemoria,
             boolean conservarArchivosAlReiniciar) {
         return paraInterfaz(ram, disco, cpus, algoritmo, metodoMemoria, estrategiaMemoria,
-                null, null, conservarArchivosAlReiniciar);
+                null, null, Integer.toString(ConfiguracionPaginacion.TAMAÑO_POR_DEFECTO),
+                "false", conservarArchivosAlReiniciar);
     }
 
     public static Configuracion paraInterfaz(int ram, int disco, int cpus,
@@ -414,13 +419,14 @@ public class Configuracion {
             boolean conservarArchivosAlReiniciar) {
         return paraInterfaz(ram, disco, cpus, algoritmo, metodoMemoria, estrategiaMemoria,
                 tamañoParticion, tamañosParticiones,
-                Integer.toString(ConfiguracionPaginacion.TAMAÑO_POR_DEFECTO), conservarArchivosAlReiniciar);
+                Integer.toString(ConfiguracionPaginacion.TAMAÑO_POR_DEFECTO), "false",
+                conservarArchivosAlReiniciar);
     }
 
     public static Configuracion paraInterfaz(int ram, int disco, int cpus,
             String algoritmo, String metodoMemoria, String estrategiaMemoria,
             String tamañoParticion, String tamañosParticiones, String tamañoPagina,
-            boolean conservarArchivosAlReiniciar) {
+            String paginacionVirtual, boolean conservarArchivosAlReiniciar) {
         validarRecursos(ram, disco, cpus);
 
         int kernel = calcularKernel(ram, cpus);
@@ -440,6 +446,7 @@ public class Configuracion {
                 estrategiaMemoria,
                 tamañoParticion,
                 tamañosParticiones,
-                tamañoPagina);
+                tamañoPagina,
+                paginacionVirtual);
     }
 }
