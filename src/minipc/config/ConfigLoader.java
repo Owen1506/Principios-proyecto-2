@@ -23,7 +23,9 @@ public class ConfigLoader {
                 valorOpcional(propiedades, "metodoMemoria", "DINAMICAS"),
                 valorOpcional(propiedades, "estrategiaMemoria", "FIRST_FIT"),
                 propiedades.getProperty("tamañoParticion"),
-                propiedades.getProperty("tamañosParticiones"));
+                propiedades.getProperty("tamañosParticiones"),
+                valorOpcional(propiedades, "tamañoPagina", Integer.toString(
+                        minipc.model.ConfiguracionPaginacion.TAMAÑO_POR_DEFECTO)));
     }
 
     /*

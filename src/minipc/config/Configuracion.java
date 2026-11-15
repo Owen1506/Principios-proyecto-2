@@ -5,6 +5,7 @@ import minipc.model.ConfiguracionDinamica;
 import minipc.model.ConfiguracionFijaIgual;
 import minipc.model.ConfiguracionFijaDiferente;
 import minipc.model.ConfiguracionMemoria;
+import minipc.model.ConfiguracionPaginacion;
 import minipc.model.MetodoAdministracionMemoria;
 import minipc.model.TipoAlgoritmo;
 import minipc.model.TipoEstrategiaMemoria;
@@ -84,6 +85,18 @@ public class Configuracion {
             boolean conservarArchivosAlReiniciar, String algoritmo,
             String metodoMemoria, String estrategiaMemoria,
             String tamañoParticion, String tamañosParticiones) {
+        this(tamañoMemoria, tamañoAlmacenamiento, tamañoMemoriaVirtual, tamañoIndice,
+                inicioUsuario, maxProcesosEnRam, maxProcesos, conservarArchivosAlReiniciar,
+                algoritmo, metodoMemoria, estrategiaMemoria, tamañoParticion, tamañosParticiones,
+                Integer.toString(ConfiguracionPaginacion.TAMAÑO_POR_DEFECTO));
+    }
+
+    public Configuracion(int tamañoMemoria, int tamañoAlmacenamiento,
+            int tamañoMemoriaVirtual, int tamañoIndice, int inicioUsuario,
+            int maxProcesosEnRam, int maxProcesos,
+            boolean conservarArchivosAlReiniciar, String algoritmo,
+            String metodoMemoria, String estrategiaMemoria,
+            String tamañoParticion, String tamañosParticiones, String tamañoPagina) {
 
         if (algoritmo == null) {
             throw new IllegalArgumentException(
@@ -145,11 +158,7 @@ public class Configuracion {
                             + this.metodoMemoria);
         }
 
-        /*
-         * En esta fase el único método implementado es DINAMICAS, así que la
-         * estrategia de selección sigue siendo obligatoria. Se valida con la
-         * misma regla que el algoritmo: solo se aceptan las que ya existen.
-         */
+        // La estrategia de ajuste se conserva por compatibilidad; solo la usa DINAMICAS.
         if (estrategiaMemoria == null) {
             throw new IllegalArgumentException(
                     "Debe indicar la estrategia de asignación de memoria.");
@@ -173,7 +182,13 @@ public class Configuracion {
                             + estrategiaSeleccionada);
         }
 
-        if (this.metodoMemoria == MetodoAdministracionMemoria.FIJAS_IGUALES) {
+        if (this.metodoMemoria == MetodoAdministracionMemoria.PAGINACION) {
+            try {
+                this.configuracionMemoria = new ConfiguracionPaginacion(Integer.parseInt(tamañoPagina.trim()));
+            } catch (NullPointerException | NumberFormatException error) {
+                throw new IllegalArgumentException("Indique el tamaño entero de la página.", error);
+            }
+        } else if (this.metodoMemoria == MetodoAdministracionMemoria.FIJAS_IGUALES) {
             try {
                 this.configuracionMemoria = new ConfiguracionFijaIgual(Integer.parseInt(tamañoParticion.trim()));
             } catch (NullPointerException | NumberFormatException error) {
@@ -213,6 +228,10 @@ public class Configuracion {
                     "El kernel debe dejar espacio para el usuario, alojar los BCP y los límites deben ser positivos.");
         }
         int areaUsuario = tamañoMemoria - inicioUsuario;
+        if (configuracionMemoria instanceof ConfiguracionPaginacion paginacion
+                && paginacion.tamañoPagina() > areaUsuario) {
+            throw new IllegalArgumentException("Debe caber al menos un marco en el área de usuario.");
+        }
         if (configuracionMemoria instanceof ConfiguracionFijaIgual fija
                 && fija.tamañoParticion() > areaUsuario) {
             throw new IllegalArgumentException("No cabe ninguna partición en el área de usuario.");
@@ -393,6 +412,15 @@ public class Configuracion {
             String algoritmo, String metodoMemoria, String estrategiaMemoria,
             String tamañoParticion, String tamañosParticiones,
             boolean conservarArchivosAlReiniciar) {
+        return paraInterfaz(ram, disco, cpus, algoritmo, metodoMemoria, estrategiaMemoria,
+                tamañoParticion, tamañosParticiones,
+                Integer.toString(ConfiguracionPaginacion.TAMAÑO_POR_DEFECTO), conservarArchivosAlReiniciar);
+    }
+
+    public static Configuracion paraInterfaz(int ram, int disco, int cpus,
+            String algoritmo, String metodoMemoria, String estrategiaMemoria,
+            String tamañoParticion, String tamañosParticiones, String tamañoPagina,
+            boolean conservarArchivosAlReiniciar) {
         validarRecursos(ram, disco, cpus);
 
         int kernel = calcularKernel(ram, cpus);
@@ -411,6 +439,7 @@ public class Configuracion {
                 metodoMemoria,
                 estrategiaMemoria,
                 tamañoParticion,
-                tamañosParticiones);
+                tamañosParticiones,
+                tamañoPagina);
     }
 }

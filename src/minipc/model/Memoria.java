@@ -11,6 +11,9 @@ import minipc.services.memoria.Hueco;
 import minipc.services.memoria.dinamica.AsignacionDeRegistros;
 import minipc.services.memoria.fija.GestorParticionesFijas;
 import minipc.services.memoria.fija.Particion;
+import minipc.services.memoria.paginacion.GestorPaginacion;
+import minipc.services.memoria.paginacion.Marco;
+import minipc.services.memoria.paginacion.TablaPaginas;
 
 /**
  * Simula la memoria principal de la Mini PC.
@@ -132,10 +135,8 @@ public class Memoria {
                 ConfiguracionFijaDiferente fija = (ConfiguracionFijaDiferente) configuracion;
                 yield new GestorParticionesFijas(inicioUsuario, size, fija.tamaños(), true);
             }
-            default -> throw new UnsupportedOperationException(
-                    "El método de administración de memoria "
-                            + configuracion.metodo()
-                            + " todavía no está implementado.");
+            case PAGINACION -> new GestorPaginacion(inicioUsuario, size,
+                    ((ConfiguracionPaginacion) configuracion).tamañoPagina());
         };
     }
 
@@ -195,6 +196,9 @@ public class Memoria {
         if (asignacion != proceso.getAsignacionMemoria()) {
             throw new IllegalStateException("El proceso no tiene una asignación vigente en RAM.");
         }
+        if (estrategia instanceof GestorPaginacion paginacion) {
+            return paginacion.getTabla(asignacion).obtenerDireccionFisica(posicionLogica);
+        }
         return asignacion.obtenerDireccionFisica(posicionLogica);
     }
 
@@ -229,6 +233,9 @@ public class Memoria {
     // Permite distinguir una falta temporal de una solicitud imposible.
     public boolean puedeAlojarAlgunaVez(int cantidad) {
         if (cantidad <= 0) return false;
+        if (estrategia instanceof GestorPaginacion paginacion) {
+            return cantidad <= paginacion.getCapacidad();
+        }
         if (estrategia instanceof GestorParticionesFijas fija) {
             return cantidad <= fija.tamañoMaximo();
         }
@@ -240,6 +247,24 @@ public class Memoria {
             return fija.getParticiones();
         }
         return List.of();
+    }
+
+    public List<Marco> getMarcos() {
+        return estrategia instanceof GestorPaginacion paginacion ? paginacion.getMarcos() : List.of();
+    }
+
+    /** Solo devuelve tablas vigentes; un proceso suspendido no conserva marcos de RAM. */
+    public TablaPaginas getTablaPaginas(BCP proceso) {
+        if (!(estrategia instanceof GestorPaginacion paginacion) || proceso == null
+                || proceso.getAsignacionMemoria() == null
+                || asignaciones.get(proceso.getInicioPrograma()) != proceso.getAsignacionMemoria()) {
+            return null;
+        }
+        return paginacion.getTabla(proceso.getAsignacionMemoria());
+    }
+
+    public int getSobrantePaginacion() {
+        return estrategia instanceof GestorPaginacion paginacion ? paginacion.getSobrante() : 0;
     }
 
     public boolean puedeCambiarConfiguracion() {

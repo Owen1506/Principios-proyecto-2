@@ -24,6 +24,9 @@ import minipc.model.*;
 import minipc.services.InformeEjecucion;
 import minipc.services.memoria.Hueco;
 import minipc.services.memoria.fija.Particion;
+import minipc.services.memoria.paginacion.EntradaPagina;
+import minipc.services.memoria.paginacion.Marco;
+import minipc.services.memoria.paginacion.TablaPaginas;
 import minipc.ui.PanelEstadisticas;
 
 /**
@@ -238,6 +241,7 @@ public class MainWindow extends JFrame {
     private final JTextField entrada = new JTextField(10);
 
     private JDialog ventanaEstadisticas;
+    private JDialog ventanaGantt;
     private PanelEstadisticas panelEstadisticas;
 
     private final JButton cargar = new JButton("Cargar ASM");
@@ -376,6 +380,9 @@ public class MainWindow extends JFrame {
 
     private final JTable tablaRam = new JTable(ram);
     private final JLabel leyendaRam = new JLabel();
+    private final DefaultTableModel modeloMarcos = modelo(
+            "Marco", "Inicio", "Fin", "Estado", "PID", "Página", "Fragmentación");
+    private final JTable tablaMarcos = new JTable(modeloMarcos);
 
     private final JTable tablaAlmacenamiento = new JTable(almacenamiento);
 
@@ -492,19 +499,7 @@ public class MainWindow extends JFrame {
                 0.73,
                 1050);
 
-        /*
-         * El cronograma puede ampliarse o reducirse arrastrando
-         * el separador, sin ocultar los paneles existentes.
-         */
-        JSplitPane vistaCompleta = new JSplitPane(
-                JSplitPane.VERTICAL_SPLIT,
-                contenido,
-                crearPanelCronograma());
-
-        // El separador permite ampliar el cronograma sin ocultar los demás paneles.
-        configurarSplit(vistaCompleta, 0.65, 470);
-
-        principal.add(vistaCompleta, BorderLayout.CENTER);
+        principal.add(contenido, BorderLayout.CENTER);
 
         add(
                 principal,
@@ -786,7 +781,8 @@ public class MainWindow extends JFrame {
         JComboBox<MetodoAdministracionMemoria> metodosMemoria = new JComboBox<>(
                 new MetodoAdministracionMemoria[] { MetodoAdministracionMemoria.DINAMICAS,
                         MetodoAdministracionMemoria.FIJAS_IGUALES,
-                        MetodoAdministracionMemoria.FIJAS_DIFERENTES });
+                        MetodoAdministracionMemoria.FIJAS_DIFERENTES,
+                        MetodoAdministracionMemoria.PAGINACION });
         metodosMemoria.setSelectedItem(controlador.getMetodoMemoria());
         metodosMemoria.setEnabled(editable && controlador.puedeConfigurarMetodoMemoria());
 
@@ -808,6 +804,10 @@ public class MainWindow extends JFrame {
         boolean editableMemoria = editable && controlador.puedeConfigurarMetodoMemoria();
         tamañoParticion.setEnabled(editableMemoria);
         tamañosParticiones.setEnabled(editableMemoria);
+        int paginaInicial = memoriaActual instanceof ConfiguracionPaginacion paginacion
+                ? paginacion.tamañoPagina() : ConfiguracionPaginacion.TAMAÑO_POR_DEFECTO;
+        JSpinner tamañoPagina = new JSpinner(new SpinnerNumberModel(paginaInicial, 1, 1073741824, 1));
+        tamañoPagina.setEnabled(editableMemoria);
 
         JDialog ventana = new JDialog(this, "Configuración de la Mini PC", true);
         ventana.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
@@ -836,6 +836,8 @@ public class MainWindow extends JFrame {
         JPanel filaDiferentes = filaConfiguracion("Tamaños separados por comas:", tamañosParticiones);
         formulario.add(filaIguales);
         formulario.add(filaDiferentes);
+        JPanel filaPaginacion = filaConfiguracion("Tamaño de página (potencia de 2):", tamañoPagina);
+        formulario.add(filaPaginacion);
         JLabel vistaParticiones = new JLabel(" ");
         vistaParticiones.setForeground(TEXTO_SECUNDARIO);
         formulario.add(vistaParticiones);
@@ -845,6 +847,7 @@ public class MainWindow extends JFrame {
                     metodo == MetodoAdministracionMemoria.DINAMICAS);
             filaIguales.setVisible(metodo == MetodoAdministracionMemoria.FIJAS_IGUALES);
             filaDiferentes.setVisible(metodo == MetodoAdministracionMemoria.FIJAS_DIFERENTES);
+            filaPaginacion.setVisible(metodo == MetodoAdministracionMemoria.PAGINACION);
             try {
                 int area = ((Number) ram.getValue()).intValue()
                         - Configuracion.calcularKernel(((Number) ram.getValue()).intValue(),
@@ -862,6 +865,11 @@ public class MainWindow extends JFrame {
                     }
                     vistaParticiones.setText("Particionado: " + suma + " | Sobrante: "
                             + (area - suma) + " posiciones");
+                } else if (metodo == MetodoAdministracionMemoria.PAGINACION) {
+                    int tamaño = ((Number) tamañoPagina.getValue()).intValue();
+                    new ConfiguracionPaginacion(tamaño);
+                    vistaParticiones.setText("Marcos: " + (area / tamaño)
+                            + " | Sobrante: " + (area % tamaño) + " posiciones");
                 } else {
                     vistaParticiones.setText(" ");
                 }
@@ -873,6 +881,7 @@ public class MainWindow extends JFrame {
         };
         metodosMemoria.addActionListener(e -> mostrarMemoria.run());
         tamañoParticion.addChangeListener(e -> mostrarMemoria.run());
+        tamañoPagina.addChangeListener(e -> mostrarMemoria.run());
         ram.addChangeListener(e -> mostrarMemoria.run());
         cantidadCPU.addChangeListener(e -> mostrarMemoria.run());
         tamañosParticiones.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
@@ -993,6 +1002,8 @@ public class MainWindow extends JFrame {
                 }
 
                 Configuracion.validarRecursos(ramValor, discoValor, cpus);
+                int paginaValor = metodoSeleccionado == MetodoAdministracionMemoria.PAGINACION
+                        ? leerEntero(tamañoPagina, "El tamaño de página") : paginaInicial;
 
                 Configuracion nueva = Configuracion.paraInterfaz(
                         ramValor,
@@ -1003,6 +1014,7 @@ public class MainWindow extends JFrame {
                         seleccionadaMemoria.name(),
                         tamañoParticion.getValue().toString(),
                         tamañosParticiones.getText(),
+                        Integer.toString(paginaValor),
                         true);
 
                 boolean cambiaHardware = ramValor != configuracion.getTamañoMemoria()
@@ -1647,13 +1659,22 @@ public class MainWindow extends JFrame {
     // CRONOGRAMA DE EJECUCIÓN
     // =========================================================
 
-    /**
-     * Construye la línea de tiempo solicitada: núcleo, proceso
-     * y una columna por segundo simulado.
-     *
-     * Una CPU puede aparecer en varias filas si tiene varios
-     * procesos asignados. Sus celdas conservan el mismo color.
-     */
+    /** Ventana no modal: observar el Gantt no interrumpe la simulación. */
+    private void mostrarDiagramaGantt() {
+        actualizarCronograma();
+        if (ventanaGantt == null) {
+            ventanaGantt = new JDialog(this, "Diagrama de Gantt · Ejecución por CPU", false);
+            ventanaGantt.setDefaultCloseOperation(JDialog.HIDE_ON_CLOSE);
+            ventanaGantt.setContentPane(crearPanelCronograma());
+            ventanaGantt.setMinimumSize(new Dimension(760, 320));
+            ventanaGantt.setSize(1120, 600);
+            ventanaGantt.setLocationRelativeTo(this);
+        }
+        ventanaGantt.setVisible(true);
+        ventanaGantt.toFront();
+    }
+
+    /** Una fila por proceso y una columna por segundo; los colores identifican cada CPU. */
     private JPanel crearPanelCronograma() {
 
         JPanel panel = new JPanel(new BorderLayout());
@@ -1917,6 +1938,15 @@ public class MainWindow extends JFrame {
         botones.add(automatico);
         botones.add(pausa);
 
+        JButton verGantt = new JButton("Diagrama de Gantt");
+        aplicarBotonSecundario(verGantt);
+        verGantt.setToolTipText("Abrir el cronograma de ejecución en una ventana independiente");
+        verGantt.addActionListener(e -> mostrarDiagramaGantt());
+        JPanel vistas = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        vistas.setOpaque(false);
+        vistas.add(verGantt);
+        panel.add(vistas, BorderLayout.WEST);
+
         panel.add(
                 botones,
                 BorderLayout.EAST);
@@ -2030,6 +2060,8 @@ public class MainWindow extends JFrame {
     private JTabbedPane crearPanelRecursos() {
 
         JTabbedPane pestanas = new JTabbedPane();
+        // Los títulos y la leyenda de RAM no deben fijar el límite del separador.
+        pestanas.setMinimumSize(new Dimension(260, 180));
 
         JPanel panelRam = new JPanel(new BorderLayout());
         panelRam.add(crearPanelTabla(tablaRam, "Memoria principal"), BorderLayout.CENTER);
@@ -2037,6 +2069,8 @@ public class MainWindow extends JFrame {
         leyendaRam.setBorder(new EmptyBorder(3, 6, 3, 6));
         panelRam.add(leyendaRam, BorderLayout.SOUTH);
         pestanas.addTab("RAM", panelRam);
+        pestanas.addTab("Marcos", crearPanelTabla(tablaMarcos,
+                "Marcos de RAM · disponibles al seleccionar paginación simple"));
 
         pestanas.addTab(
                 "Disco",
@@ -2421,6 +2455,7 @@ public class MainWindow extends JFrame {
         JTable[] tablas = {
                 tablaTrabajos,
                 tablaRam,
+                tablaMarcos,
                 tablaAlmacenamiento,
                 tablaArchivos
         };
@@ -2918,6 +2953,14 @@ public class MainWindow extends JFrame {
 
         valorRAM.setText(
                 usuarioOcupado + " / " + usuarioTotal);
+        if (controlador.getMetodoMemoria() == MetodoAdministracionMemoria.PAGINACION) {
+            usuarioOcupado = usuarioTotal - controlador.getMemoria().getSobrantePaginacion()
+                    - controlador.getMemoria().getPosicionesLibres();
+            valorRAM.setText(usuarioOcupado + " / " + usuarioTotal);
+        }
+        valorRAM.setToolTipText(controlador.getMetodoMemoria() == MetodoAdministracionMemoria.PAGINACION
+                ? "Posiciones reservadas en marcos, incluida la fragmentación interna."
+                : "Posiciones de RAM que contienen instrucciones.");
 
         valorKernel.setText(
                 kernel + " posiciones");
@@ -3134,10 +3177,43 @@ public class MainWindow extends JFrame {
         List<BCP> procesosEnMemoria = controlador.getGestorProcesos().getProcesosEnRAM();
         List<Hueco> huecosLibres = controlador.getMemoria().getHuecos();
         List<Particion> particiones = controlador.getMemoria().getParticionesFijas();
+        List<Marco> marcosFisicos = controlador.getMemoria().getMarcos();
+        Map<Integer, BCP> dueñosPosiciones = new HashMap<>();
+        Map<Integer, BCP> dueñosMarcos = new HashMap<>();
+        Map<Integer, EntradaPagina> paginasPorMarco = new HashMap<>();
+        for (BCP proceso : procesosEnMemoria) {
+            for (int direccion : proceso.getAsignacionMemoria().getPosiciones()) {
+                dueñosPosiciones.put(direccion, proceso);
+            }
+            TablaPaginas tabla = controlador.getMemoria().getTablaPaginas(proceso);
+            if (tabla != null) {
+                for (EntradaPagina pagina : tabla.getEntradas()) {
+                    dueñosMarcos.put(pagina.marco(), proceso);
+                    paginasPorMarco.put(pagina.marco(), pagina);
+                }
+            }
+        }
+        modeloMarcos.setRowCount(0);
+        for (Marco marco : marcosFisicos) {
+            BCP dueño = dueñosMarcos.get(marco.numero());
+            EntradaPagina pagina = paginasPorMarco.get(marco.numero());
+            modeloMarcos.addRow(new Object[] { marco.numero(), marco.inicio(), marco.fin() - 1,
+                    marco.libre() ? "Libre" : "Ocupado", dueño == null ? "—" : dueño.getPid(),
+                    pagina == null ? "—" : pagina.pagina(), marco.fragmentacionInterna() });
+        }
         int indiceHueco = 0;
         int indiceParticion = 0;
         leyendaRam.setText("Memoria: " + controlador.getMetodoMemoria()
                 + " | PID: colores | Gris: libre | Amarillo: fragmentación | Oscuro: sobrante");
+        if (controlador.getMemoria().getConfiguracionMemoria() instanceof ConfiguracionPaginacion paginacion) {
+            long libres = marcosFisicos.stream().filter(Marco::libre).count();
+            int fragmentacion = marcosFisicos.stream().mapToInt(Marco::fragmentacionInterna).sum();
+            leyendaRam.setText("<html>Paginación simple · página: " + paginacion.tamañoPagina()
+                    + " | Marcos libres: " + libres + " / " + marcosFisicos.size()
+                    + "<br>Fragmentación interna: " + fragmentacion
+                    + " | Sobrante sin marco: " + controlador.getMemoria().getSobrantePaginacion()
+                    + " | Tablas de páginas en Ver BCP</html>");
+        }
 
         for (int i = 0; i < controlador.getSizeMemoria(); i++) {
 
@@ -3148,13 +3224,10 @@ public class MainWindow extends JFrame {
 
             String bloque = i < controlador.getInicioUsuario() ? "Kernel" : "Usuario";
             if (i >= controlador.getInicioUsuario()) {
-                for (BCP proceso : procesosEnMemoria) {
+                BCP proceso = dueñosPosiciones.get(i);
+                if (proceso != null) {
                     int inicio = proceso.getInicioPrograma();
-                    int fin = inicio + proceso.getTamañoPrograma();
-                    if (i >= inicio && i < fin) {
-                        bloque = "PID " + proceso.getPid() + " [" + inicio + "-" + (fin - 1) + "]";
-                        break;
-                    }
+                    bloque = "PID " + proceso.getPid() + " [" + inicio + "-" + proceso.getFinPrograma() + "]";
                 }
                 if (indiceHueco < huecosLibres.size()) {
                     Hueco hueco = huecosLibres.get(indiceHueco);
@@ -3179,6 +3252,25 @@ public class MainWindow extends JFrame {
                             bloque = "Fragmentación" + rango;
                         } else {
                             bloque += rango;
+                        }
+                    }
+                }
+                if (!marcosFisicos.isEmpty()) {
+                    int tamaño = marcosFisicos.getFirst().tamaño();
+                    int numeroMarco = (i - controlador.getInicioUsuario()) / tamaño;
+                    if (numeroMarco >= marcosFisicos.size()) {
+                        bloque = "No paginada";
+                    } else {
+                        Marco marco = marcosFisicos.get(numeroMarco);
+                        String rango = " · marco " + numeroMarco + " [" + marco.inicio()
+                                + "-" + (marco.fin() - 1) + "]";
+                        if (marco.libre()) {
+                            bloque = "Libre" + rango;
+                        } else if (i >= marco.inicio() + marco.posicionesUtilizadas()) {
+                            bloque = "Fragmentación" + rango;
+                        } else {
+                            bloque = "PID " + dueñosMarcos.get(numeroMarco).getPid()
+                                    + " · página " + paginasPorMarco.get(numeroMarco).pagina() + rango;
                         }
                     }
                 }
@@ -3619,8 +3711,8 @@ public class MainWindow extends JFrame {
 
             JPanel memoriaYTiempo = crearGrupoDetalleBCP("Memoria y tiempo",
                     new String[][] {
-                            { "Primera posición física", String.valueOf(p.getInicioPrograma()) },
-                            { "Última posición física", String.valueOf(p.getFinPrograma()) },
+                            { "Primera posición física", posicionFisicaDetalle(p, false) },
+                            { "Última posición física", posicionFisicaDetalle(p, true) },
                             { "Tamaño", p.getTamañoPrograma() + " instrucciones" },
                             { "Dirección BCP", String.valueOf(p.getDireccionBCP()) },
                             { "Inicio real", hora(p.getHoraInicio()) },
@@ -3659,12 +3751,56 @@ public class MainWindow extends JFrame {
             pestañasBCP.addTab("General", crearVistaDetalle(informacion));
             pestañasBCP.addTab("Memoria y tiempo", crearVistaDetalle(memoriaYTiempo));
             pestañasBCP.addTab("Registros", crearVistaDetalle(registrosYContexto));
+            if (controlador.getMemoria().getConfiguracionMemoria() instanceof ConfiguracionPaginacion paginacion) {
+                pestañasBCP.addTab("Páginas", crearTablaPaginas(p, paginacion));
+            }
         }
 
         pestañasBCP.setSelectedIndex(Math.max(0,
                 Math.min(pestañaActiva, pestañasBCP.getTabCount() - 1)));
         pestañasBCP.revalidate();
         pestañasBCP.repaint();
+    }
+
+    private String posicionFisicaDetalle(BCP proceso, boolean ultima) {
+        if (controlador.getMetodoMemoria() == MetodoAdministracionMemoria.PAGINACION
+                && controlador.getMemoria().getTablaPaginas(proceso) == null) {
+            return "—";
+        }
+        return String.valueOf(ultima ? proceso.getFinPrograma() : proceso.getInicioPrograma());
+    }
+
+    /** Muestra las páginas sin cargar ni modificar la memoria al consultar el BCP. */
+    private JPanel crearTablaPaginas(BCP proceso, ConfiguracionPaginacion configuracionPagina) {
+        DefaultTableModel modeloPaginas = modelo("Página", "Lógica", "Marco", "Física", "Estado");
+        TablaPaginas tabla = controlador.getMemoria().getTablaPaginas(proceso);
+        int tamaño = configuracionPagina.tamañoPagina();
+        int cantidad = (int) (((long) proceso.getTamañoPrograma() + tamaño - 1) / tamaño);
+        int inicioVirtual = controlador.getGestorMemoriaVirtual().getDireccionVirtual(proceso);
+        for (int pagina = 0; pagina < cantidad; pagina++) {
+            int inicio = pagina * tamaño;
+            int fin = Math.min(proceso.getTamañoPrograma(), inicio + tamaño) - 1;
+            EntradaPagina entrada = tabla == null ? null : tabla.getEntradas().get(pagina);
+            modeloPaginas.addRow(new Object[] { pagina, inicio + "–" + fin,
+                    entrada == null ? "—" : entrada.marco(),
+                    entrada == null ? "—" : entrada.inicioMarco() + "–"
+                            + (entrada.inicioMarco() + entrada.instrucciones() - 1),
+                    entrada != null ? "RAM" : inicioVirtual >= 0 ? "Secundaria" : "Liberada" });
+        }
+        JTable vista = new JTable(modeloPaginas);
+        vista.setRowHeight(28);
+        vista.setFillsViewportHeight(true);
+        vista.getTableHeader().setReorderingAllowed(false);
+        JPanel panel = new JPanel(new BorderLayout(4, 8));
+        panel.setBackground(PANEL);
+        JLabel descripcion = new JLabel("<html>Página y marco: " + tamaño + " posiciones. "
+                + (tabla != null ? "Fragmentación interna: " + tabla.getFragmentacionInterna()
+                        : inicioVirtual >= 0 ? "Proceso completo en secundaria desde " + inicioVirtual
+                        : "Sin marcos asignados") + ".</html>");
+        descripcion.setBorder(new EmptyBorder(8, 8, 4, 8));
+        panel.add(descripcion, BorderLayout.NORTH);
+        panel.add(new JScrollPane(vista), BorderLayout.CENTER);
+        return panel;
     }
 
     /** Añade desplazamiento vertical individual a cada vista del BCP. */
@@ -3913,11 +4049,11 @@ public class MainWindow extends JFrame {
 
             if (area.equals("Kernel")) {
                 componente.setBackground(MORADO_SUAVE);
-            } else if (area.startsWith("Libre ")) {
+            } else if (area.startsWith("Libre")) {
                 componente.setBackground(GRIS_SUAVE);
             } else if (area.startsWith("Fragmentación")) {
                 componente.setBackground(new Color(255, 235, 170));
-            } else if (area.equals("No particionada")) {
+            } else if (area.equals("No particionada") || area.equals("No paginada")) {
                 componente.setBackground(new Color(190, 195, 200));
             } else if (area.startsWith("PID ")) {
                 int finPid = area.indexOf(' ', 4);

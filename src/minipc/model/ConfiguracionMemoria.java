@@ -1,7 +1,7 @@
 package minipc.model;
 
 public sealed interface ConfiguracionMemoria permits ConfiguracionDinamica,
-        ConfiguracionFijaIgual, ConfiguracionFijaDiferente {
+        ConfiguracionFijaIgual, ConfiguracionFijaDiferente, ConfiguracionPaginacion {
 
   
     MetodoAdministracionMemoria metodo();

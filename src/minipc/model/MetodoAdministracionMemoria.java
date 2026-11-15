@@ -19,7 +19,7 @@ public enum MetodoAdministracionMemoria {
     }
 
     public boolean estaImplementado() {
-        return this != PAGINACION;
+        return true;
     }
 
     @Override
