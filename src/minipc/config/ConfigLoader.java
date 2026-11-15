@@ -25,7 +25,8 @@ public class ConfigLoader {
                 propiedades.getProperty("tamañoParticion"),
                 propiedades.getProperty("tamañosParticiones"),
                 valorOpcional(propiedades, "tamañoPagina", Integer.toString(
-                        minipc.model.ConfiguracionPaginacion.TAMAÑO_POR_DEFECTO)));
+                        minipc.model.ConfiguracionPaginacion.TAMAÑO_POR_DEFECTO)),
+                valorOpcional(propiedades, "paginacionVirtual", "false"));
     }
 
     /*
