@@ -1,9 +1,8 @@
 package minipc.parser;
 
-import minipc.model.Instruccion;
-
 import java.util.ArrayList;
 import java.util.List;
+import minipc.model.Instruccion;
 
 /**
  * Se encarga de transformar las líneas de código ASM previamente
@@ -28,6 +27,7 @@ public class ASMParser {
      * @param lineas líneas del archivo ASM previamente leído y validado
      * @return lista de instrucciones interpretadas
      */
+
     public List<Instruccion> parsear(List<String> lineas) {
 
         List<Instruccion> instrucciones = new ArrayList<>();
@@ -40,7 +40,28 @@ public class ASMParser {
                 continue;
             }
 
-            Instruccion instruccion = parsearLinea(linea);
+            Instruccion original = parsearLinea(linea);
+
+            if (original.getOperacion().equals("INT")
+                    && "09H".equals(original.getServicio())) {
+
+                throw new IllegalArgumentException(
+                        "INT 09H ya no está permitida en el Proyecto 2.");
+            }
+
+            // Todas las instrucciones duran exactamente 1 segundo.
+            Instruccion instruccion = new Instruccion(
+                    original.getOperacion(),
+                    original.getRegistro(),
+                    original.getRegistro2(),
+                    original.getServicio(),
+                    original.getValor(),
+                    original.getParametros(),
+                    original.getTextoOriginal(),
+                    original.getTexto(),
+                    1 // cambia el paramentro original
+            );
+
             instrucciones.add(instruccion);
         }
 
@@ -65,7 +86,7 @@ public class ASMParser {
             operandos = partes[1].trim();
         }
 
-/*
+        /*
          * MOV puede recibir:
          *
          * MOV AX, 5
@@ -77,7 +98,8 @@ public class ASMParser {
         if (operacion.equals("MOV")) {
 
             /*
-             *  Mejor poner un limite en el split para que asi no se hagan separaciones de mas y ocurran problemas en ejecucion.
+             * Mejor poner un limite en el split para que asi no se hagan separaciones de
+             * mas y ocurran problemas en ejecucion.
              *
              * MOV AL, "Hola, mundo"
              */
@@ -148,8 +170,8 @@ public class ASMParser {
         /*
          * INC y DEC pueden utilizarse con o sin registro.
          *
-         * INC      -> acumulador
-         * INC AX   -> registro AX
+         * INC -> acumulador
+         * INC AX -> registro AX
          */
         else if (operacion.equals("INC") || operacion.equals("DEC")) {
 

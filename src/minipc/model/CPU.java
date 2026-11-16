@@ -6,18 +6,18 @@ package minipc.model;
  * La CPU mantiene el estado actual de ejecución mediante:
  *
  * - PC (Program Counter): indica la dirección de la siguiente
- *   instrucción que debe ejecutarse.
+ * instrucción que debe ejecutarse.
  *
  * - IR (Instruction Register): almacena la línea ASM original
- *   de la instrucción que está siendo procesada.
+ * de la instrucción que está siendo procesada.
  *
  * - AC (Accumulator): registro acumulador utilizado por operaciones
- *   aritméticas y de transferencia.
+ * aritméticas y de transferencia.
  *
  * - Registros generales: AX, BX, CX, DX, AH y AL.
  *
  * - Zero Flag: indica el resultado de una comparación realizada
- *   mediante CMP.
+ * mediante CMP.
  */
 public class CPU {
 
@@ -25,13 +25,26 @@ public class CPU {
     private String ir;
     private int ac;
     private boolean zeroFlag;
-
+    private int tiempoOcupado = 0;
+    private int tiempoOcioso = 0;
+    private int id;
     private Registros registros;
 
     /**
      * Crea una nueva CPU e inicializa todos sus componentes.
      */
     public CPU() {
+        this(1);
+    }
+
+    public CPU(int id) {
+
+        if (id < 1 || id > 5) {
+            throw new IllegalArgumentException(
+                    "El identificador de CPU debe estar entre 1 y 5.");
+        }
+
+        this.id = id;
         this.pc = 0;
         this.ir = "";
         this.ac = 0;
@@ -48,10 +61,19 @@ public class CPU {
         return pc;
     }
 
+    public void registrarTick(boolean ocupada) {
+
+        if (ocupada) {
+            tiempoOcupado++;
+        } else {
+            tiempoOcioso++;
+        }
+    }
+
     /**
      * Modifica el valor del Program Counter.
      *
-     * @param pc nueva dirección que será almacenada en el PC
+     * @param pc posición lógica de la próxima instrucción dentro del programa
      */
     public void setPC(int pc) {
         this.pc = pc;
@@ -136,6 +158,23 @@ public class CPU {
         this.ac = 0;
         this.zeroFlag = false;
         this.registros.reiniciarRegistros();
+    }
+
+    public int getId() {
+        return id;
+    }
+
+    public int getTiempoOcupado() {
+        return tiempoOcupado;
+    }
+
+    public int getTiempoOcioso() {
+        return tiempoOcioso;
+    }
+
+    public void reiniciarEstadisticas() {
+        tiempoOcupado = 0;
+        tiempoOcioso = 0;
     }
 
     /**

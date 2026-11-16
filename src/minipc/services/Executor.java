@@ -282,12 +282,11 @@ public class Executor {
         // ASMValidator ya comprobó que el desplazamiento es numérico antes del parseo.
         // Usa long para detectar también el desbordamiento de un desplazamiento int.
         long destino = (long) cpu.getPC() + instruccion.getValor();
-        if (destino < proceso.getInicioPrograma() || destino > proceso.getFinPrograma()) {
+        if (destino < 0 || destino >= proceso.getTamañoPrograma()) {
             throw new IllegalStateException("Salto " + instruccion.getOperacion()
                     + " fuera de rango en PID " + proceso.getPid()
                     + ": PC=" + cpu.getPC() + ", destino=" + destino
-                    + ", rango permitido=" + proceso.getInicioPrograma()
-                    + ".." + proceso.getFinPrograma());
+                    + ", rango lógico permitido=0.." + (proceso.getTamañoPrograma() - 1));
         }
         cpu.setPC((int) destino);
     }
@@ -336,8 +335,7 @@ public class Executor {
 
         BCP proceso = obtenerProcesoActual();
 
-        if (instruccion.getParametros().size()
-                > proceso.getPila().getCapacidad() - proceso.getPila().getCantidad()) {
+        if (instruccion.getParametros().size() > proceso.getPila().getCapacidad() - proceso.getPila().getCantidad()) {
             throw new IllegalStateException("Desbordamiento de pila en PARAM: necesita "
                     + instruccion.getParametros().size() + " posiciones y quedan "
                     + (proceso.getPila().getCapacidad() - proceso.getPila().getCantidad()) + ".");
@@ -382,10 +380,13 @@ public class Executor {
      */
     private BCP obtenerProcesoActual() {
 
-        BCP proceso = gestorProcesos.getProcesoActual();
+        // Cada CPU debe consultar su propio proceso.
+        BCP proceso = gestorProcesos.getProcesoActual(cpu.getId());
 
         if (proceso == null) {
-            throw new IllegalStateException("No existe un proceso actualmente en ejecución.");
+            throw new IllegalStateException(
+                    "No existe un proceso actualmente en ejecución en CPU "
+                            + cpu.getId());
         }
 
         return proceso;

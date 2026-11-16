@@ -1,15 +1,16 @@
 package minipc.services;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import minipc.config.Configuracion;
 import minipc.model.BCP;
 import minipc.model.EstadoProceso;
 import minipc.model.Memoria;
-import minipc.config.Configuracion;
-
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Queue;
 
 /**
  * Administra los procesos existentes dentro de la Mini PC.
@@ -22,9 +23,9 @@ import java.util.Queue;
  * actualmente utilizando la CPU.
  */
 public class GestorProcesos {
-
+    private AsignadorProcesosCPU asignadorProcesosCPU;
     private final int maxProcesos;
-    private int maxProcesosEnRam = 5;
+    private int maxProcesosEnRam = 25;
 
     private int siguientePid;
 
@@ -32,9 +33,12 @@ public class GestorProcesos {
     private Queue<BCP> colaPreparados;
     private List<BCP> bloqueados;
 
-    private BCP procesoActual;
+    private final Map<Integer, BCP> procesosEnEjecucion = new HashMap<>();
 
+    private int instanteSimulado;
+    private BCP procesoActual;
     private Memoria memoria;
+    private boolean suspendido = false;
 
     /**
      * Crea el gestor de procesos.
@@ -63,7 +67,16 @@ public class GestorProcesos {
         this.colaPreparados = new LinkedList<>();
         this.bloqueados = new ArrayList<>();
 
-        this.procesoActual = null;
+    }
+
+    public void establecerAsignadorCPU(AsignadorProcesosCPU asignador) {
+
+        if (asignador == null) {
+            throw new IllegalArgumentException(
+                    "El asignador no puede ser null.");
+        }
+
+        this.asignadorProcesosCPU = asignador;
     }
 
     public GestorProcesos(Memoria memoria, Configuracion configuracion) {
@@ -99,7 +112,7 @@ public class GestorProcesos {
      *
      * @param inicioPrograma dirección inicial del programa en memoria
      * @param tamañoPrograma tamaño del programa
-     * @param prioridad prioridad asignada al proceso
+     * @param prioridad      prioridad asignada al proceso
      * @return BCP creado
      */
     public BCP crearProceso(int inicioPrograma, int tamañoPrograma, int prioridad) {
@@ -114,6 +127,7 @@ public class GestorProcesos {
 
         BCP bcp = new BCP(siguientePid, inicioPrograma, tamañoPrograma);
 
+        if (inicioPrograma >= 0) bcp.reubicarPrograma(memoria.getAsignacion(inicioPrograma));
         bcp.setPrioridad(prioridad);
 
         memoria.guardarBCP(bcp);
@@ -155,6 +169,32 @@ public class GestorProcesos {
         }
     }
 
+    public void iniciarEjecucion(BCP bcp) {
+        iniciarEjecucion(1, bcp);
+    }
+
+    public void bloquearProcesoActual() {
+        bloquearProcesoActual(1);
+    }
+
+    public void bloquearProcesoActual(int cpuId) {
+
+        BCP procesoActual = procesosEnEjecucion.get(cpuId);
+
+        if (procesoActual == null) {
+            throw new IllegalStateException(
+                    "No existe un proceso en ejecución.");
+        }
+
+        procesoActual.setEstado(EstadoProceso.BLOQUEADO);
+
+        if (!bloqueados.contains(procesoActual)) {
+            bloqueados.add(procesoActual);
+        }
+
+        procesosEnEjecucion.remove(cpuId);
+    }
+
     public void reiniciar() {
         for (BCP bcp : listaTrabajos) {
             if (bcp.getDireccionBCP() != -1) {
@@ -166,7 +206,9 @@ public class GestorProcesos {
         listaTrabajos.clear();
         colaPreparados.clear();
         bloqueados.clear();
-        procesoActual = null;
+        procesosEnEjecucion.clear();
+        instanteSimulado = 0;
+
         siguientePid = 1;
     }
 
@@ -212,60 +254,67 @@ public class GestorProcesos {
      *
      * @param bcp proceso que recibe la CPU
      */
-    public void iniciarEjecucion(BCP bcp) {
+
+    public void iniciarEjecucion(int cpuId, BCP bcp) {
 
         validarProceso(bcp);
+        if (bcp.getCpuAsignada() != cpuId) {
 
-        if (procesoActual != null && procesoActual != bcp) {
-            throw new IllegalStateException("Ya existe un proceso utilizando la CPU.");
+            throw new IllegalStateException(
+                    "El PID " + bcp.getPid()
+                            + " pertenece a CPU "
+                            + bcp.getCpuAsignada()
+                            + ", no a CPU " + cpuId + ".");
+        }
+
+        if (procesosEnEjecucion.containsKey(cpuId)) {
+            throw new IllegalStateException(
+                    "La CPU " + cpuId + " ya tiene un proceso.");
         }
 
         if (bcp.getEstado() != EstadoProceso.PREPARADO) {
-            throw new IllegalStateException("Solo un proceso preparado puede pasar a ejecución.");
+            throw new IllegalStateException(
+                    "Solo un proceso preparado puede pasar a ejecución.");
         }
 
         colaPreparados.remove(bcp);
+
         bcp.setEstado(EstadoProceso.EJECUCION);
 
         if (bcp.getHoraInicio() == null) {
             bcp.setHoraInicio(LocalDateTime.now());
         }
 
-        procesoActual = bcp;
+        bcp.registrarInicioSimulado(instanteSimulado);
+
+        procesosEnEjecucion.put(cpuId, bcp);
     }
 
-    /**
-     * Bloquea el proceso que actualmente utiliza la CPU.
-     *
-     * Se utilizará, por ejemplo, cuando el proceso quede esperando
-     * una operación de entrada.
-     */
-    public void bloquearProcesoActual() {
+    public void expropiarProcesoActual(int cpuId) {
 
-        if (procesoActual == null) {
-            throw new IllegalStateException("No existe un proceso en ejecución.");
+        BCP proceso = procesosEnEjecucion.get(cpuId);
+
+        if (proceso == null
+                || proceso.getEstado() != EstadoProceso.EJECUCION) {
+
+            throw new IllegalStateException(
+                    "No existe un proceso en ejecución en CPU "
+                            + cpuId + ".");
         }
 
-        procesoActual.setEstado(EstadoProceso.BLOQUEADO);
+        procesosEnEjecucion.remove(cpuId);
 
-        if (!bloqueados.contains(procesoActual)) {
-            bloqueados.add(procesoActual);
+        proceso.setEstado(EstadoProceso.PREPARADO);
+
+        if (!colaPreparados.contains(proceso)) {
+
+            colaPreparados.add(proceso);
         }
-
-        procesoActual = null;
     }
 
-    /**
-     * Desbloquea un proceso cuando termina el evento que esperaba.
-     *
-     * Si está en memoria principal:
-     * BLOQUEADO -> PREPARADO.
-     *
-     * Si continúa en memoria virtual:
-     * BLOQUEADO_SUSPENDIDO -> PREPARADO_SUSPENDIDO.
-     *
-     * @param bcp proceso que terminó de esperar el evento
-     */
+    // se encarga de desbloquear un proceso que se encuentra bloqueado y lo pasa a
+    // preparado, si el proceso se encuentra bloqueado suspendido lo pasa a
+    // preparado suspendido
     public void desbloquearProceso(BCP bcp) {
 
         validarProceso(bcp);
@@ -290,62 +339,75 @@ public class GestorProcesos {
         throw new IllegalStateException("El proceso no se encuentra bloqueado.");
     }
 
-    /**
-     * Finaliza el proceso que actualmente utiliza la CPU.
-     *
-     * Se registra la hora final y se libera la memoria utilizada
-     * por el programa y su BCP.
-     */
+    // finaliza el proceso que actualmente se encuentra en ejecución, liberando la
+    // memoria del programa y el BCP de memoria, además de cerrar los archivos
+    // abiertos por el proceso
     public void finalizarProcesoActual() {
+        finalizarProcesoActual(1);
+    }
+
+    public void finalizarProcesoActual(int cpuId) {
+
+        BCP procesoActual = procesosEnEjecucion.get(cpuId);
 
         if (procesoActual == null) {
-            throw new IllegalStateException("No existe un proceso en ejecución.");
+            throw new IllegalStateException(
+                    "No existe un proceso en ejecución.");
         }
 
         BCP bcp = procesoActual;
 
         bcp.setEstado(EstadoProceso.FINALIZADO);
+
         bcp.setHoraFinal(LocalDateTime.now());
+
+        bcp.registrarFinSimulado(instanteSimulado + 1);
+
         bcp.getArchivosAbiertos().clear();
 
         colaPreparados.remove(bcp);
         bloqueados.remove(bcp);
 
-        memoria.liberarPrograma(bcp.getInicioPrograma(), bcp.getTamañoPrograma());
+        memoria.liberarPrograma(
+                bcp.getInicioPrograma(),
+                bcp.getTamañoPrograma());
 
         int direccionBCP = bcp.getDireccionBCP();
 
         if (direccionBCP != -1) {
+
             memoria.liberarBCP(direccionBCP);
+
             bcp.setDireccionBCP(-1);
         }
 
         bcp.setDireccionSiguienteBCP(-1);
 
-        procesoActual = null;
+        procesosEnEjecucion.remove(cpuId);
+        if (asignadorProcesosCPU != null) {
 
+            asignadorProcesosCPU.liberarCupo(bcp);
+        }
         actualizarEnlacesBCP();
     }
 
-    /**
-     * Incrementa un segundo simulado de CPU al proceso actual.
-     *
-     * Este método se utilizará por cada clic/tick en el que el
-     * proceso esté utilizando la CPU.
-     */
+    // Incrementa el contador de tiempo de CPU del proceso que actualmente se
+    // encuentra en ejecución.
     public void incrementarTiempoCPU() {
+        incrementarTiempoCPU(1);
+    }
+
+    public void incrementarTiempoCPU(int cpuId) {
+
+        BCP procesoActual = procesosEnEjecucion.get(cpuId);
 
         if (procesoActual != null) {
             procesoActual.incrementarTiempoCPU();
         }
     }
 
-    /**
-     * Busca un proceso mediante su PID.
-     *
-     * @param pid identificador del proceso
-     * @return BCP correspondiente o null si no existe
-     */
+    // busca un proceso por su PID dentro de la lista de trabajos del gestor.
+    // Devuelve el BCP correspondiente si se encuentra, o null si no existe.
     public BCP buscarProceso(int pid) {
 
         for (BCP bcp : listaTrabajos) {
@@ -358,9 +420,6 @@ public class GestorProcesos {
         return null;
     }
 
-    /**
-     * Cuenta los procesos que todavía no han finalizado.
-     */
     private int contarProcesosActivos() {
 
         int cantidad = 0;
@@ -375,12 +434,9 @@ public class GestorProcesos {
         return cantidad;
     }
 
-    /**
-     * Actualiza las direcciones que enlazan un BCP con el siguiente.
-     *
-     * Solo se toman en cuenta BCP que actualmente se encuentren
-     * almacenados en memoria principal.
-     */
+    // Actualiza los enlaces de los BCP en memoria para reflejar la lista de
+    // trabajos actual. Esto asegura que cada BCP apunte al siguiente BCP en la
+    // lista, o -1 si es el último.
     private void actualizarEnlacesBCP() {
 
         BCP anterior = null;
@@ -400,9 +456,8 @@ public class GestorProcesos {
         }
     }
 
-    /**
-     * Verifica que el proceso recibido exista dentro del gestor.
-     */
+    // Valida que el proceso no sea null y que pertenezca a la lista de trabajos del
+    // gestor.
     private void validarProceso(BCP bcp) {
 
         if (bcp == null) {
@@ -427,10 +482,72 @@ public class GestorProcesos {
     }
 
     public BCP getProcesoActual() {
-        return procesoActual;
+        return getProcesoActual(1);
+    }
+
+    public BCP getProcesoActual(int cpuId) {
+        return procesosEnEjecucion.get(cpuId);
     }
 
     public int getCantidadProcesosActivos() {
         return contarProcesosActivos();
     }
+
+    public boolean getSuspendido() {
+        return suspendido;
+    }
+
+    public void setSuspendido() {
+        if (!suspendido) {
+            suspendido = true;
+        } else {
+            suspendido = true;
+        }
+
+    }
+
+    public void establecerInstanteSimulado(int instanteSimulado) {
+
+        if (instanteSimulado < 0) {
+            throw new IllegalArgumentException(
+                    "El tiempo simulado no puede ser negativo.");
+        }
+
+        this.instanteSimulado = instanteSimulado;
+    }
+
+    /** Segundo simulado actual, usado por los planificadores que dependen del tiempo. */
+    public int getInstanteSimulado() {
+
+        return instanteSimulado;
+    }
+
+    public void prepararProcesosLlegados(int tiempoActual) {
+
+        for (BCP proceso : listaTrabajos) {
+
+            // Solo revisar procesos que todavía están en NUEVO.
+            if (proceso.getEstado() != EstadoProceso.NUEVO) {
+                continue;
+            }
+
+            // Todavía no ha llegado.
+            if (proceso.getTiempoLlegada() > tiempoActual) {
+                continue;
+            }
+
+            // El programa ya está cargado en RAM.
+            if (proceso.getInicioPrograma() >= 0) {
+
+                prepararProceso(proceso);
+
+            } else {
+
+                // El programa está esperando espacio en RAM.
+                proceso.setEstado(
+                        EstadoProceso.PREPARADO_SUSPENDIDO);
+            }
+        }
+    }
+
 }

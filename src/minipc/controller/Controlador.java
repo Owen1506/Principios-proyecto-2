@@ -1,29 +1,50 @@
 package minipc.controller;
 
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import minipc.config.ConfigLoader;
+import minipc.config.Configuracion;
+import minipc.model.AlgoritmoPlanificacion;
 import minipc.model.Almacenamiento;
 import minipc.model.BCP;
+import minipc.model.ConfiguracionPaginacion;
 import minipc.model.CPU;
+import minipc.model.ConfiguracionDinamica;
+import minipc.model.ConfiguracionMemoria;
 import minipc.model.EstadoProceso;
 import minipc.model.Instruccion;
 import minipc.model.Memoria;
-import minipc.config.Configuracion;
-import minipc.config.ConfigLoader;
-import java.io.IOException;
-import java.nio.file.Path;
-
+import minipc.model.MetodoAdministracionMemoria;
+import minipc.model.TipoAlgoritmo;
+import minipc.model.TipoEstrategiaMemoria;
+import minipc.parser.ASMParser;
+import minipc.parser.ASMReader;
+import minipc.parser.ASMValidator;
+import minipc.services.AsignadorProcesosCPU;
 import minipc.services.Despachador;
 import minipc.services.Executor;
 import minipc.services.FCFS;
 import minipc.services.GestorInterrupciones;
-import minipc.services.GestorProcesos;
 import minipc.services.GestorMemoriaVirtual;
+import minipc.services.memoria.EstrategiaAsignacionMemoria;
+import minipc.services.memoria.paginacion.GestorPaginasVirtuales;
+import minipc.services.GestorProcesos;
+import minipc.services.GuaranteedScheduling;
+import minipc.services.HRRN;
+import minipc.services.LotteryScheduling;
+import minipc.services.MultilevelFeedbackQueue;
+import minipc.services.Prioridad;
+import minipc.services.RoundRobin;
+import minipc.services.SelfishRoundRobin;
+import minipc.services.SPN;
+import minipc.services.SRT;
 import minipc.services.SistemaArchivos;
-
-import java.util.List;
-import java.util.ArrayList;
-import minipc.parser.ASMReader;
-import minipc.parser.ASMValidator;
-import minipc.parser.ASMParser;
+//import minipc.services.SRT;
 
 /**
  * Coordina los principales componentes de la Mini PC.
@@ -33,28 +54,37 @@ import minipc.parser.ASMParser;
 public class Controlador {
 
     private CPU cpu;
+    private final List<ContextoNucleo> nucleos = new ArrayList<>();
     private Memoria memoria;
     private Almacenamiento almacenamiento;
-
+    private int tiempoSimulado = 0;
+    private AsignadorProcesosCPU asignadorProcesosCPU;
     private GestorProcesos gestorProcesos;
     private GestorMemoriaVirtual gestorMemoriaVirtual;
-    private FCFS fcfs;
+    private AlgoritmoPlanificacion planificador;
+    private int quantumRR = 3;
+    private TipoAlgoritmo algoritmoQ2 = TipoAlgoritmo.RR;
+    private boolean prioridadExpropiativa = true;
+    private int tasaEsperaSRR = 2;
+    private int tasaServicioSRR = 1;
     private Despachador despachador;
     private SistemaArchivos sistemaArchivos;
     private GestorInterrupciones gestorInterrupciones;
     private Executor executor;
+    private TipoAlgoritmo algoritmoSeleccionado;
 
     // Control de la instrucción que está consumiendo ticks de CPU.
-    private Instruccion instruccionActual;
-    private int ticksRestantes;
+
     private Configuracion configuracion;
     private final List<String> erroresEjecucion = new ArrayList<>();
+    private final java.util.Map<Integer, String> huellasProgramas = new java.util.HashMap<>();
+    private final java.util.Map<Integer, Integer> prioridadesInicialesInforme = new java.util.HashMap<>();
 
-    public Controlador(int tamañoMemoria, int inicioUsuario, int tamañoAlmacenamiento, int tamañoIndice, int tamañoMemoriaVirtual) {
+    public Controlador(int tamañoMemoria, int inicioUsuario, int tamañoAlmacenamiento, int tamañoIndice,
+            int tamañoMemoriaVirtual) {
 
-        this.cpu = new CPU();
-        this.memoria = new Memoria(tamañoMemoria, inicioUsuario);
         this.almacenamiento = new Almacenamiento(tamañoAlmacenamiento, tamañoIndice, tamañoMemoriaVirtual);
+        this.memoria = new Memoria(tamañoMemoria, inicioUsuario, almacenamiento);
         inicializarServicios(null);
     }
 
@@ -71,31 +101,120 @@ public class Controlador {
     }
 
     private void inicializarServicios(Configuracion configuracion) {
-        this.gestorProcesos = configuracion == null ? new GestorProcesos(memoria)
-                : new GestorProcesos(memoria, configuracion);
-        this.gestorMemoriaVirtual = new GestorMemoriaVirtual(memoria, almacenamiento, gestorProcesos);
-        String algoritmo = configuracion == null ? "FCFS" : configuracion.getAlgoritmo();
-        this.fcfs = switch (algoritmo) {
-            case "FCFS" -> new FCFS(gestorProcesos);
-            default -> throw new IllegalArgumentException("Algoritmo no implementado: " + algoritmo);
-        };
-        this.despachador = new Despachador(cpu, gestorProcesos, fcfs);
-        this.sistemaArchivos = new SistemaArchivos(almacenamiento, gestorProcesos);
-        this.gestorInterrupciones = new GestorInterrupciones(cpu, gestorProcesos, despachador, sistemaArchivos);
-        this.executor = new Executor(cpu, gestorProcesos, gestorInterrupciones);
 
-        this.instruccionActual = null;
-        this.ticksRestantes = 0;
+        /*
+         * Aplica la estrategia de memoria pedida por la configuración antes de
+         * crear los servicios que guardan la referencia a Memoria.
+         * Lo llama el constructor de Controlador al iniciar la sesión.
+         */
+        if (configuracion != null) {
+            memoria.cambiarConfiguracionMemoria(configuracion.getConfiguracionMemoria());
+        }
+
+        this.gestorProcesos = configuracion == null
+                ? new GestorProcesos(memoria)
+                : new GestorProcesos(memoria, configuracion);
+
+        this.gestorMemoriaVirtual = new GestorMemoriaVirtual(
+                memoria,
+                almacenamiento,
+                gestorProcesos);
+
+        String algoritmo = configuracion == null
+                ? "FCFS"
+                : configuracion.getAlgoritmo();
+
+        this.planificador = crearPlanificador(
+                TipoAlgoritmo.valueOf(algoritmo));
+
+        // Crear un único sistema de archivos compartido.
+        this.sistemaArchivos = new SistemaArchivos(
+                almacenamiento,
+                gestorProcesos);
+
+        inicializarNucleos(1);
     }
 
-    /**
-     * Carga un programa en memoria principal y crea su proceso.
-     *
-     * El programa se agrega sin eliminar los procesos que ya se
-     * encuentran cargados.
-     */
+    private AlgoritmoPlanificacion crearPlanificador(
+            TipoAlgoritmo tipo) {
+
+        return switch (tipo) {
+
+            case FCFS -> new FCFS(gestorProcesos);
+
+            case SPN -> new SPN(gestorProcesos);
+
+            case SRT -> new SRT(gestorProcesos);
+
+            case HRRN -> new HRRN(gestorProcesos);
+
+            case GUARANTEED_SCHEDULING -> new GuaranteedScheduling(gestorProcesos);
+
+            case MULTILEVEL_FEEDBACK_QUEUE -> new MultilevelFeedbackQueue(gestorProcesos, algoritmoQ2);
+
+            case LOTTERY -> new LotteryScheduling(gestorProcesos, quantumRR);
+
+            case PRIORIDAD -> new Prioridad(gestorProcesos, prioridadExpropiativa);
+
+            case SELFISH_ROUND_ROBIN -> new SelfishRoundRobin(
+                    gestorProcesos, quantumRR, tasaEsperaSRR, tasaServicioSRR);
+
+            case RR -> new RoundRobin(
+                    gestorProcesos,
+                    quantumRR);
+
+            default -> throw new UnsupportedOperationException(
+                    "El algoritmo " + tipo
+                            + " todavía no está implementado.");
+        };
+    }
+
+    private void inicializarNucleos(int cantidad) {
+        asignadorProcesosCPU = new AsignadorProcesosCPU(cantidad);
+
+        gestorProcesos.establecerAsignadorCPU(
+                asignadorProcesosCPU);
+
+        nucleos.clear();
+
+        for (int numero = 1; numero <= cantidad; numero++) {
+
+            CPU procesador = new CPU(numero);
+
+            Despachador nuevoDespachador = new Despachador(
+                    procesador,
+                    gestorProcesos,
+                    planificador);
+
+            GestorInterrupciones nuevasInterrupciones = new GestorInterrupciones(
+                    procesador,
+                    gestorProcesos,
+                    nuevoDespachador,
+                    sistemaArchivos);
+
+            Executor nuevoExecutor = new Executor(
+                    procesador,
+                    gestorProcesos,
+                    nuevasInterrupciones);
+
+            nucleos.add(
+                    new ContextoNucleo(
+                            procesador,
+                            nuevoDespachador,
+                            nuevasInterrupciones,
+                            nuevoExecutor));
+        }
+
+        ContextoNucleo primero = nucleos.get(0);
+
+        cpu = primero.getCpu();
+        despachador = primero.getDespachador();
+        gestorInterrupciones = primero.getInterrupciones();
+        executor = primero.getExecutor();
+    }
+
     public BCP cargarPrograma(List<Instruccion> programa) {
-        return cargarPrograma(programa, 0);
+        return cargarPrograma(programa, prioridadPredeterminada());
     }
 
     /**
@@ -116,11 +235,11 @@ public class Controlador {
         if (!errores.isEmpty()) {
             throw new IllegalArgumentException(archivo.getFileName() + ":\n" + String.join("\n", errores));
         }
-        return cargarPrograma(archivo.getFileName().toString(), new ASMParser().parsear(lineas), 0);
+        return cargarPrograma(archivo.getFileName().toString(), new ASMParser().parsear(lineas), prioridadPredeterminada());
     }
 
     public BCP cargarPrograma(String nombre, List<Instruccion> programa) {
-        return cargarPrograma(nombre, programa, 0);
+        return cargarPrograma(nombre, programa, prioridadPredeterminada());
     }
 
     /** Una admisión fallida deshace también la nueva copia en disco. */
@@ -135,7 +254,7 @@ public class Controlador {
     }
 
     public BCP cargarProgramaDesdeDisco(String nombre) {
-        return cargarProgramaDesdeDisco(nombre, 0);
+        return cargarProgramaDesdeDisco(nombre, prioridadPredeterminada());
     }
 
     /** Permite volver a ejecutar un programa sin duplicar su copia en disco. */
@@ -144,12 +263,29 @@ public class Controlador {
     }
 
     private BCP admitirPrograma(List<Instruccion> programa, int prioridad) {
+        validarPrioridad(prioridad);
+        if (tiempoSimulado > 0) {
 
+            int procesosAsignados = 0;
+
+            for (int cpuId = 1; cpuId <= nucleos.size(); cpuId++) {
+
+                procesosAsignados += asignadorProcesosCPU
+                        .getCantidadProcesos(cpuId);
+            }
+
+            if (procesosAsignados >= nucleos.size() * 5) {
+
+                throw new IllegalStateException(
+                        "No hay cupos disponibles "
+                                + "en las CPU configuradas.");
+            }
+        }
         if (programa == null || programa.isEmpty()) {
             throw new IllegalArgumentException("No se puede cargar un programa vacío.");
         }
-        if (programa.size() > memoria.getSize() - memoria.getInicioUsuario()) {
-            throw new IllegalArgumentException("El programa supera toda el área de usuario de RAM.");
+        if (!memoria.puedeAlojarAlgunaVez(programa.size())) {
+            throw new IllegalArgumentException("El programa no cabe en el método de memoria configurado.");
         }
 
         if (!gestorProcesos.hayEspacioParaPrograma(programa.size())) {
@@ -159,7 +295,10 @@ public class Controlador {
 
             BCP bcp = gestorProcesos.crearProcesoSuspendido(programa.size(), prioridad);
             try {
+                if (tiempoSimulado > 0) bcp.setTiempoLlegada(tiempoSimulado);
                 gestorMemoriaVirtual.guardarProcesoNuevo(bcp, programa);
+                asignarSiHayCupo(bcp);
+                huellasProgramas.put(bcp.getPid(), huellaPrograma(programa));
             } catch (RuntimeException e) {
                 gestorProcesos.descartarProcesoNuevo(bcp);
                 throw e;
@@ -172,7 +311,10 @@ public class Controlador {
         try {
             inicioPrograma = memoria.cargarPrograma(programa);
             bcp = gestorProcesos.crearProceso(inicioPrograma, programa.size(), prioridad);
-            gestorProcesos.prepararProceso(bcp);
+            if (tiempoSimulado > 0) bcp.setTiempoLlegada(tiempoSimulado);
+            asignarSiHayCupo(bcp);
+            huellasProgramas.put(bcp.getPid(), huellaPrograma(programa));
+
             return bcp;
 
         } catch (RuntimeException e) {
@@ -186,242 +328,799 @@ public class Controlador {
         }
     }
 
-    /**
-     * Ejecuta un segundo/tick simulado.
-     *
-     * Cada llamada representa un clic del botón Siguiente.
-     */
     public void ejecutarSiguiente() {
 
-        /*
-         * Si la CPU está libre se intenta despachar un proceso.
-         */
-        if (gestorProcesos.getProcesoActual() == null) {
-
-            intentarReactivarSuspendidos();
-
-            if (!fcfs.hayProcesosPreparados()) {
-                return;
-            }
-
-            despachador.despacharSiguiente();
-            reiniciarControlInstruccion();
-        }
-
-        BCP proceso = gestorProcesos.getProcesoActual();
-
-        if (proceso == null) {
+        // No continuar si terminaron todos los procesos.
+        if (simulacionFinalizada()) {
             return;
         }
+        verificarAsignacionesCompletas();
 
-        /*
-         * Si el PC ya superó el programa, el proceso termina.
-         */
-        if (cpu.getPC() > proceso.getFinPrograma()) {
-            despachador.guardarContextoActual();
-            gestorProcesos.finalizarProcesoActual();
-            reiniciarControlInstruccion();
-            intentarReactivarSuspendidos();
-            despachador.despacharSiguiente();
-            return;
-        }
+        // Comprobar que el usuario seleccionó un algoritmo.
+        validarAlgoritmoSeleccionado();
 
-        if (cpu.getPC() < proceso.getInicioPrograma()) {
-            finalizarPorError(proceso, new IllegalStateException("El PC se encuentra fuera del rango del proceso."));
-            return;
-        }
+        // Establecer el segundo actual de la simulación.
+        gestorProcesos.establecerInstanteSimulado(
+                tiempoSimulado);
 
-        /*
-         * FETCH.
-         *
-         * Solo se obtiene una nueva instrucción cuando no existe
-         * otra consumiendo ticks.
-         */
-        if (instruccionActual == null) {
+        // Admitir procesos cuyo tiempo de llegada se cumplió.
+        gestorProcesos.prepararProcesosLlegados(
+                tiempoSimulado);
 
-            instruccionActual = memoria.leer(cpu.getPC());
-
-            if (instruccionActual == null) {
-                finalizarPorError(proceso, new IllegalStateException("No existe una instrucción en la dirección " + cpu.getPC()));
-                return;
-            }
-
-            cpu.setIR(instruccionActual.getTextoOriginal());
-            ticksRestantes = instruccionActual.getPeso();
-        }
-
-        /*
-         * Una instrucción con peso mayor a cero consume un segundo
-         * de CPU por cada clic.
-         */
-        if (instruccionActual.getPeso() > 0) {
-
-            gestorProcesos.incrementarTiempoCPU();
-            ticksRestantes--;
-
-            /*
-             * Todavía no ha consumido todo su peso.
-             */
-            if (ticksRestantes > 0) {
-                proceso.guardarContexto(cpu);
-                return;
+        for (BCP proceso : gestorProcesos.getListaTrabajos()) {
+            if (proceso.getEstado() != EstadoProceso.NUEVO) {
+                prioridadesInicialesInforme.putIfAbsent(proceso.getPid(), proceso.getPrioridad());
             }
         }
 
-        /*
-         * Cuando el peso fue consumido se aplica realmente
-         * el efecto de la instrucción.
-         *
-         * INT 09H tiene peso 0, por lo que llega directamente aquí.
-         */
-        boolean pcModificado;
-        try {
-            pcModificado = executor.ejecutar(instruccionActual);
-        } catch (IllegalArgumentException | IllegalStateException | ArithmeticException error) {
-            // Una falla posterior al cambio de proceso no debe finalizar al siguiente PID.
-            if (gestorProcesos.getProcesoActual() != proceso) throw error;
-            finalizarPorError(proceso, error);
-            return;
+        // Intentar recuperar procesos desde memoria virtual.
+        intentarReactivarSuspendidos();
+
+        planificador.iniciarTick();
+        // Todas las CPU ejecutan dentro del mismo segundo simulado.
+        for (ContextoNucleo nucleo : nucleos) {
+
+            // Ejecutar un paso de esta CPU.
+            nucleo.limpiarInstruccionTick();
+            boolean ocupada = ejecutarPasoCPU(nucleo);
+
+            // Registrar si estuvo ocupada u ociosa.
+            nucleo.getCpu().registrarTick(ocupada);
         }
 
-        reiniciarControlInstruccion();
+        planificador.finalizarTick();
 
-        /*
-         * Una interrupción puede haber bloqueado o finalizado el proceso
-         * y el Despachador puede haber entregado la CPU a otro proceso.
-         *
-         * En ese caso no debemos modificar el PC del nuevo proceso.
-         */
-        if (gestorProcesos.getProcesoActual() != proceso) {
-            intentarReactivarSuspendidos();
-            if (gestorProcesos.getProcesoActual() == null && fcfs.hayProcesosPreparados()) {
-                despachador.despacharSiguiente();
-            }
-            return;
+        // Verificar que ningún PID esté asignado a dos CPU.
+        verificarProcesosEnCPU();
+
+        // Avanzar una única vez el reloj global.
+        tiempoSimulado++;
+    }
+
+    private void validarAlgoritmoSeleccionado() {
+
+        if (algoritmoSeleccionado == null) {
+
+            throw new IllegalStateException(
+                    "Debe seleccionar un algoritmo "
+                            + "antes de iniciar la ejecución.");
         }
 
-        /*
-         * JMP, JE o JNE pueden modificar directamente el PC.
-         */
-        if (!pcModificado) {
-            cpu.incrementarPC();
-        }
+        if (planificador == null) {
 
-        proceso.guardarContexto(cpu);
-
-        /*
-         * Si se alcanzó el final sin utilizar INT 20H,
-         * también se finaliza el proceso.
-         */
-        if (cpu.getPC() > proceso.getFinPrograma()) {
-            gestorProcesos.finalizarProcesoActual();
-            intentarReactivarSuspendidos();
-            despachador.despacharSiguiente();
+            throw new IllegalStateException(
+                    "No se configuró un planificador.");
         }
     }
 
-    private void finalizarPorError(BCP proceso, RuntimeException error) {
-        despachador.guardarContextoActual();
-        proceso.setMotivoError(error.getMessage());
-        erroresEjecucion.add("ERROR DE EJECUCIÓN | PID " + proceso.getPid()
-                + " | PC=" + proceso.getPC() + " | IR=" + proceso.getIR()
-                + " | " + error.getMessage());
-        gestorProcesos.finalizarProcesoActual();
-        reiniciarControlInstruccion();
-        intentarReactivarSuspendidos();
-        despachador.despacharSiguiente();
+    // valida que no se ejecute el proceso en mas de un cpu
+    private void verificarProcesosEnCPU() {
+
+        Set<Integer> procesosEjecutando = new HashSet<>();
+
+        for (ContextoNucleo nucleo : nucleos) {
+
+            int cpuId = nucleo.getCpu().getId();
+
+            BCP proceso = gestorProcesos.getProcesoActual(cpuId);
+
+            if (proceso == null) {
+                continue;
+            }
+
+            int pid = proceso.getPid();
+
+            if (!procesosEjecutando.add(pid)) {
+
+                throw new IllegalStateException(
+                        "Error de planificación: el proceso PID "
+                                + pid
+                                + " está asignado simultáneamente "
+                                + "a más de una CPU.");
+            }
+        }
+    }
+
+    private boolean ejecutarPasoCPU(ContextoNucleo nucleo) {
+
+        // Obtener los componentes de esta CPU.
+        CPU procesador = nucleo.getCpu();
+
+        int cpuId = procesador.getId();
+
+        Despachador plan = nucleo.getDespachador();
+        BCP anterior = gestorProcesos.getProcesoActual(cpuId);
+
+        if (anterior != null
+                && planificador.debeExpropiar(cpuId, anterior)) {
+
+            /*
+             * Guardar el progreso de la instrucción
+             * que se está ejecutando.
+             */
+            nucleo.guardarInstruccionInterrumpida(
+                    anterior.getPid());
+
+            plan.expropiarActual();
+        }
+
+        if (gestorProcesos.getProcesoActual(cpuId) == null) {
+
+            if (!planificador.hayProcesosPreparados(cpuId)) {
+
+                return false;
+            }
+
+            BCP asignado = plan.despacharSiguiente();
+
+            if (asignado != null) {
+
+                nucleo.restaurarInstruccionInterrumpida(
+                        asignado.getPid());
+            }
+        }
+
+        BCP proceso = gestorProcesos.getProcesoActual(cpuId);
+
+        if (proceso == null) {
+            return false;
+        }
+
+        if (procesador.getPC() >= proceso.getTamañoPrograma()) {
+
+            plan.guardarContextoActual();
+
+            gestorProcesos.finalizarProcesoActual(cpuId);
+
+            nucleo.reiniciarInstruccion();
+
+            intentarReactivarSuspendidos();
+
+            return false;
+        }
+
+        if (procesador.getPC() < 0) {
+
+            finalizarPorError(
+                    nucleo,
+                    proceso,
+                    new IllegalStateException(
+                            "El PC está fuera del rango del proceso."));
+
+            return false;
+        }
+
+        if (nucleo.getInstruccionActual() == null) {
+
+            Instruccion instruccion = memoria.leer(proceso, procesador.getPC());
+
+            if (instruccion == null) {
+
+                finalizarPorError(
+                        nucleo,
+                        proceso,
+                        new IllegalStateException(
+                                "No existe una instrucción en la dirección "
+                                        + procesador.getPC()));
+
+                return false;
+            }
+
+            // Guardar la instrucción en el núcleo correspondiente.
+            nucleo.setInstruccionActual(instruccion);
+
+            // Cada instrucción consume al menos un tick.
+            nucleo.setTicksRestantes(
+                    Math.max(1, instruccion.getPeso()));
+
+            // Actualizar registro IR de esta CPU.
+            procesador.setIR(instruccion.getTextoOriginal());
+        }
+
+        nucleo.registrarInstruccionTick(memoria.obtenerDireccionFisica(proceso, procesador.getPC()), proceso.getPid());
+        gestorProcesos.incrementarTiempoCPU(cpuId);
+        planificador.alConsumirTick(cpuId, proceso);
+        nucleo.setTicksRestantes(
+                nucleo.getTicksRestantes() - 1);
+
+        if (nucleo.getTicksRestantes() > 0) {
+
+            proceso.guardarContexto(procesador);
+
+            return true;
+        }
+
+        boolean pcModificado;
+
+        try {
+
+            pcModificado = nucleo.getExecutor()
+                    .ejecutar(nucleo.getInstruccionActual());
+
+        } catch (IllegalArgumentException
+                | IllegalStateException
+                | ArithmeticException error) {
+
+            if (gestorProcesos.getProcesoActual(cpuId) == proceso) {
+
+                finalizarPorError(nucleo, proceso, error);
+
+            } else {
+
+                erroresEjecucion.add(
+                        "Error posterior a interrupción en CPU "
+                                + cpuId
+                                + ": "
+                                + error.getMessage());
+            }
+
+            return true;
+        }
+
+        nucleo.reiniciarInstruccion();
+
+        if (gestorProcesos.getProcesoActual(cpuId) != proceso) {
+
+            intentarReactivarSuspendidos();
+
+            return true;
+        }
+
+        if (!pcModificado) {
+
+            procesador.incrementarPC();
+        }
+
+        proceso.guardarContexto(procesador);
+
+        if (procesador.getPC() >= proceso.getTamañoPrograma()) {
+
+            gestorProcesos.finalizarProcesoActual(cpuId);
+
+            intentarReactivarSuspendidos();
+        }
+
+        // Esta CPU consumió un segundo simulado.
+        return true;
+    }
+
+    // Indica si existe al menos un proceso capaz de utilizar la CPU.
+    public boolean puedeAvanzar() {
+
+        for (ContextoNucleo nucleo : nucleos) {
+
+            int cpuId = nucleo.getCpu().getId();
+
+            if (gestorProcesos.getProcesoActual(cpuId) != null) {
+                return true;
+            }
+        }
+
+        if (!gestorProcesos.getColaPreparados().isEmpty()) {
+            return true;
+        }
+
+        for (BCP proceso : gestorProcesos.getListaTrabajos()) {
+
+            // Procesos que todavía deben llegar.
+            if (proceso.getEstado() == EstadoProceso.NUEVO) {
+                return true;
+            }
+
+            // Procesos suspendidos que podrían reactivarse.
+            if (proceso.getEstado() == EstadoProceso.PREPARADO_SUSPENDIDO
+                    && gestorMemoriaVirtual.estaEnMemoriaVirtual(proceso)
+                    && gestorProcesos.hayEspacioParaPrograma(
+                            proceso.getTamañoPrograma())) {
+
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public List<String> getErroresEjecucion() {
         return new ArrayList<>(erroresEjecucion);
     }
 
-    /**
-     * Ejecuta automáticamente mientras existan procesos capaces
-     * de utilizar la CPU.
-     *
-     * Si todos los procesos quedan bloqueados esperando entrada,
-     * el método se detiene para permitir interacción con el usuario.
-     */
+    private void finalizarPorError(
+            ContextoNucleo nucleo,
+            BCP proceso,
+            RuntimeException error) {
+
+        Despachador plan = nucleo.getDespachador();
+
+        int cpuId = nucleo.getCpu().getId();
+
+        // Guardar contexto de la CPU correspondiente.
+        plan.guardarContextoActual();
+
+        // Registrar motivo.
+        proceso.setMotivoError(error.getMessage());
+
+        erroresEjecucion.add(
+                "ERROR DE EJECUCIÓN"
+                        + " | CPU " + cpuId
+                        + " | PID " + proceso.getPid()
+                        + " | PC=" + proceso.getPC()
+                        + " | IR=" + proceso.getIR()
+                        + " | " + error.getMessage());
+
+        // Finalizar solamente el proceso de esta CPU.
+        gestorProcesos.finalizarProcesoActual(cpuId);
+
+        // Limpiar la instrucción de esta CPU.
+        nucleo.reiniciarInstruccion();
+
+        intentarReactivarSuspendidos();
+    }
+
     public void ejecutarTodo() {
 
-        while (!simulacionFinalizada()) {
-
-            if (gestorProcesos.getProcesoActual() == null) {
-                intentarReactivarSuspendidos();
-                if (!fcfs.hayProcesosPreparados()) {
-                    break;
-                }
-            }
-
+        while (!simulacionFinalizada() && puedeAvanzar()) {
             ejecutarSiguiente();
         }
     }
 
-    /**
-     * Entrega una entrada de teclado al proceso que está esperando
-     * una INT 09H.
-     */
     public BCP recibirEntradaTeclado(String entrada) {
         BCP proceso = gestorInterrupciones.recibirEntradaTeclado(entrada);
         intentarReactivarSuspendidos();
-        if (gestorProcesos.getProcesoActual() == null && fcfs.hayProcesosPreparados()) {
+        if (gestorProcesos.getProcesoActual() == null) {
             despachador.despacharSiguiente();
         }
         return proceso;
     }
 
-    private void intentarReactivarSuspendidos() {
+    public void intentarReactivarSuspendidos() {
         boolean procesoReactivado;
         do {
             procesoReactivado = false;
             for (BCP bcp : gestorProcesos.getListaTrabajos()) {
-                if (bcp.getEstado() == EstadoProceso.PREPARADO_SUSPENDIDO
-                        && gestorMemoriaVirtual.estaEnMemoriaVirtual(bcp)
-                        && gestorProcesos.hayEspacioParaPrograma(bcp.getTamañoPrograma())) {
-                    gestorMemoriaVirtual.reactivarProceso(bcp);
-                    procesoReactivado = true;
-                    break;
+                if (bcp.getEstado() == EstadoProceso.PREPARADO_SUSPENDIDO) {
+                    if (esPaginacionVirtual() && bcp.getAsignacionMemoria() != null) {
+                        bcp.setEstado(EstadoProceso.PREPARADO);
+                        if (!gestorProcesos.getColaPreparados().contains(bcp)) {
+                            gestorProcesos.getColaPreparados().add(bcp);
+                        }
+                        procesoReactivado = true;
+                        break;
+                    } else if (!esPaginacionVirtual()
+                            && gestorMemoriaVirtual.estaEnMemoriaVirtual(bcp)
+                            && gestorProcesos.hayEspacioParaPrograma(bcp.getTamañoPrograma())) {
+                        gestorMemoriaVirtual.reactivarProceso(bcp);
+                        procesoReactivado = true;
+                        break;
+                    }
                 }
             }
         } while (procesoReactivado);
     }
 
-    /**
-     * Limpia el control de ticks correspondiente a la instrucción anterior.
-     */
-    private void reiniciarControlInstruccion() {
-        instruccionActual = null;
-        ticksRestantes = 0;
-    }
-
-    /**
-     * Indica si ya no existen procesos activos.
-     */
     public boolean simulacionFinalizada() {
         return gestorProcesos.getCantidadProcesosActivos() == 0;
     }
 
-    /** La suspensión de bloqueados es explícita; no existe una política de desalojo automático. */
     public void suspenderProceso(int pid) {
         BCP proceso = gestorProcesos.buscarProceso(pid);
+        if (esPaginacionVirtual()) {
+            if (proceso.getAsignacionMemoria() != null) {
+                ((GestorPaginasVirtuales) memoria.getEstrategia()).evictResident(proceso.getAsignacionMemoria());
+            }
+            proceso.setEstado(EstadoProceso.PREPARADO_SUSPENDIDO);
+            gestorProcesos.getColaPreparados().remove(proceso);
+            return;
+        }
         gestorMemoriaVirtual.suspenderProceso(proceso);
     }
 
-    public void reiniciar() {
-        reiniciar(configuracion == null || configuracion.isConservarArchivosAlReiniciar());
+    public void reiniciar(boolean conservarArchivos) {
+
+        tiempoSimulado = 0;
+
+        erroresEjecucion.clear();
+        huellasProgramas.clear();
+        prioridadesInicialesInforme.clear();
+
+        gestorMemoriaVirtual.reiniciar();
+
+        gestorProcesos.reiniciar();
+
+        memoria.reiniciar();
+
+        almacenamiento.reiniciar(!conservarArchivos);
+
+        // Reiniciar cada CPU independientemente.
+        for (ContextoNucleo nucleo : nucleos) {
+
+            nucleo.reiniciar();
+        }
+        if (algoritmoSeleccionado == TipoAlgoritmo.MULTILEVEL_FEEDBACK_QUEUE
+                || algoritmoSeleccionado == TipoAlgoritmo.GUARANTEED_SCHEDULING) {
+            configurarAlgoritmo(algoritmoSeleccionado);
+        }
     }
 
-    /** Reinicia la simulación y permite escoger si conservar los archivos. */
-    public void reiniciar(boolean conservarArchivos) {
-        erroresEjecucion.clear();
-        gestorInterrupciones.reiniciar();
-        gestorMemoriaVirtual.reiniciar();
-        gestorProcesos.reiniciar();
-        memoria.reiniciar();
-        almacenamiento.reiniciar(!conservarArchivos);
-        cpu.reiniciarCPU();
-        reiniciarControlInstruccion();
+    /* Identifica el programa admitido sin alterar la ejecución. La llama cargarPrograma. */
+    private static String huellaPrograma(List<Instruccion> programa) {
+        try {
+            java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+            for (Instruccion i : programa) {
+                String[] campos = { i.getOperacion(), i.getRegistro(), i.getRegistro2(),
+                        i.getServicio(), String.valueOf(i.getValor()), String.valueOf(i.getParametros()),
+                        i.getTextoOriginal(), i.getTexto(), Integer.toString(i.getPeso()) };
+                for (String campo : campos) {
+                    byte[] bytes = (campo == null ? "" : campo).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                    digest.update(java.nio.ByteBuffer.allocate(4).putInt(campo == null ? -1 : bytes.length).array());
+                    digest.update(bytes);
+                }
+            }
+            return java.util.HexFormat.of().formatHex(digest.digest());
+        } catch (java.security.NoSuchAlgorithmException error) {
+            throw new IllegalStateException("SHA-256 no está disponible.", error);
+        }
+    }
+
+    /* Proporciona la huella del programa. La llama InformeEjecucion.capturar. */
+    public String getHuellaPrograma(int pid) { return huellasProgramas.get(pid); }
+
+    /* Expone la prioridad o tickets iniciales. La llama InformeEjecucion.capturar. */
+    public Integer getPrioridadInicialInforme(int pid) { return prioridadesInicialesInforme.get(pid); }
+
+    /* Devuelve la política configurada para el último nivel de MLFQ. */
+    public TipoAlgoritmo getAlgoritmoQ2() { return algoritmoQ2; }
+
+    /* Configura Q2 cuando ninguna CPU está ejecutando y actualiza el planificador. */
+    public void configurarAlgoritmoQ2(TipoAlgoritmo tipo) {
+        if (!MultilevelFeedbackQueue.esAlgoritmoValido(tipo)) {
+            throw new IllegalArgumentException("Q2 admite FCFS, SPN, SRT, HRRN o RR.");
+        }
+        validarPlanificacionConfigurable();
+        algoritmoQ2 = tipo;
+        if (algoritmoSeleccionado == TipoAlgoritmo.MULTILEVEL_FEEDBACK_QUEUE) {
+            configurarAlgoritmo(algoritmoSeleccionado);
+        }
+    }
+
+    /* Devuelve el nivel de un proceso cuando MLFQ está activo. */
+    public int getNivelMLFQ(int pid) {
+        return planificador instanceof MultilevelFeedbackQueue mlfq ? mlfq.getNivel(pid) : -1;
+    }
+
+    /* Expone el servicio que el planificador garantizado contabilizó para el PID. */
+    public int getServicioGarantizado(int pid) {
+        return planificador instanceof GuaranteedScheduling g ? g.getServicio(pid) : 0;
+    }
+
+    /* Expone la parte justa que el planificador garantizado acumuló para el PID. */
+    public double getParteJustaGarantizada(int pid) {
+        return planificador instanceof GuaranteedScheduling g ? g.getParteJusta(pid) : 0.0;
+    }
+
+    /* Expone la proporción usada para decidir el siguiente proceso. */
+    public double getProporcionGarantizada(int pid) {
+        return planificador instanceof GuaranteedScheduling g ? g.getProporcion(pid) : 0.0;
+    }
+
+    public TipoAlgoritmo getAlgoritmoSeleccionado() {
+        return algoritmoSeleccionado;
+    }
+
+    /* Indica si las CPU están libres para cambiar la política de planificación. */
+    public boolean puedeConfigurarPlanificacion() {
+        for (ContextoNucleo nucleo : nucleos) {
+            if (gestorProcesos.getProcesoActual(nucleo.getCpu().getId()) != null) return false;
+        }
+        return true;
+    }
+
+    /* Impide cambiar las reglas mientras alguna CPU mantiene un proceso en ejecución. */
+    private void validarPlanificacionConfigurable() {
+        if (!puedeConfigurarPlanificacion()) {
+            throw new IllegalStateException("No se puede cambiar la planificación mientras haya procesos en ejecución.");
+        }
+    }
+
+    public void configurarAlgoritmo(TipoAlgoritmo algoritmo) {
+
+        if (algoritmo == null) {
+            throw new IllegalArgumentException(
+                    "Debe seleccionar un algoritmo de planificación.");
+        }
+
+        validarPlanificacionConfigurable();
+
+        if (algoritmo == TipoAlgoritmo.PRIORIDAD) {
+            for (BCP proceso : gestorProcesos.getListaTrabajos()) {
+                if (proceso.getEstado() != EstadoProceso.FINALIZADO && proceso.getPrioridad() > 10) {
+                    throw new IllegalArgumentException("La prioridad del PID " + proceso.getPid()
+                            + " debe estar entre 1 y 10 antes de seleccionar PRIORIDAD.");
+                }
+            }
+            for (BCP proceso : gestorProcesos.getListaTrabajos()) {
+                if (proceso.getEstado() != EstadoProceso.FINALIZADO && proceso.getPrioridad() == 0) {
+                    proceso.setPrioridad(1);
+                }
+            }
+        }
+        if (algoritmo == TipoAlgoritmo.LOTTERY) {
+            for (BCP proceso : gestorProcesos.getListaTrabajos()) {
+                if (proceso.getEstado() != EstadoProceso.FINALIZADO && proceso.getPrioridad() == 0) {
+                    proceso.setPrioridad(1);
+                }
+            }
+        }
+        AlgoritmoPlanificacion nuevo = crearPlanificador(algoritmo);
+        this.planificador = nuevo;
+
+        this.algoritmoSeleccionado = algoritmo;
+        for (ContextoNucleo nucleo : nucleos) {
+
+            nucleo.getDespachador()
+                    .establecerPlanificador(nuevo);
+        }
+
+    }
+
+    /*
+     * Devuelve la estrategia de asignación de memoria vigente.
+     * La usan la ventana de Configuración y el resumen del dispositivo.
+     */
+    public TipoEstrategiaMemoria getEstrategiaMemoria() {
+        return memoria.getTipoEstrategia();
+    }
+
+    public MetodoAdministracionMemoria getMetodoMemoria() {
+        return memoria.getMetodoMemoria();
+    }
+
+    public boolean puedeConfigurarMetodoMemoria() {
+        return gestorProcesos.getCantidadProcesosActivos() == 0
+                && memoria.puedeCambiarEstrategia();
+    }
+
+    public void configurarMetodoMemoria(ConfiguracionMemoria nueva) {
+        if (nueva == null) {
+            throw new IllegalArgumentException("Debe indicar una configuración de memoria.");
+        }
+        if (nueva.equals(memoria.getConfiguracionMemoria())) {
+            return;
+        }
+        if (!puedeConfigurarMetodoMemoria()) {
+            throw new IllegalStateException(
+                    "No se puede cambiar la memoria mientras haya procesos activos o suspendidos.");
+        }
+        memoria.cambiarConfiguracionMemoria(nueva);
+    }
+
+    /*
+     * Indica si la estrategia se puede cambiar sin perder programas cargados.
+     * La usa la ventana de Configuración para habilitar el selector.
+     */
+    public boolean puedeConfigurarEstrategiaMemoria() {
+        return puedeConfigurarMetodoMemoria();
+    }
+
+    /*
+     * Cambia la estrategia de memoria y deja el área de usuario vacía. Rechaza
+     * las estrategias que todavía no tienen implementación y las sesiones con
+     * programas cargados.
+     * La llama MainWindow al aplicar la configuración.
+     */
+    public void configurarEstrategiaMemoria(TipoEstrategiaMemoria tipo) {
+        if (tipo == null) {
+            throw new IllegalArgumentException(
+                    "Debe seleccionar una estrategia de asignación de memoria.");
+        }
+        if (!tipo.estaImplementada()) {
+            throw new UnsupportedOperationException(
+                    "La estrategia de memoria " + tipo
+                            + " todavía no está implementada.");
+        }
+        configurarMetodoMemoria(new ConfiguracionDinamica(tipo));
+    }
+
+    public void configurarLlegada(int pid, int llegada) {
+
+        if (llegada < 0) {
+            throw new IllegalArgumentException(
+                    "El tiempo de llegada no puede ser negativo.");
+        }
+
+        BCP proceso = obtenerProcesoNuevoEditable(pid);
+        proceso.setTiempoLlegada(llegada);
+    }
+
+    /*
+     * ¿Qué hace? Cambia la prioridad o los tickets mientras el proceso siga
+     * NUEVO, aunque la simulación ya esté ejecutando otros procesos.
+     * ¿Quién lo llama? La tabla y las tarjetas de procesos de MainWindow.
+     */
+    public void configurarPrioridad(int pid, int prioridad) {
+
+        validarPrioridad(prioridad);
+
+        BCP proceso = obtenerProcesoNuevoEditable(pid);
+        proceso.setPrioridad(prioridad);
+    }
+
+    /* La edición depende exclusivamente del estado del proceso que se modifica. */
+    private BCP obtenerProcesoNuevoEditable(int pid) {
+        BCP proceso = gestorProcesos.buscarProceso(pid);
+
+        if (proceso == null) {
+            throw new IllegalArgumentException(
+                    "No existe el proceso " + pid);
+        }
+
+        if (proceso.getEstado() != EstadoProceso.NUEVO) {
+            throw new IllegalStateException(
+                    "Los atributos solo se pueden modificar mientras el proceso esté en estado NUEVO.");
+        }
+        return proceso;
+    }
+
+    /* ¿Qué hace? Escoge el valor inicial adecuado. ¿Quién lo llama? Las cargas sin prioridad explícita. */
+    private int prioridadPredeterminada() {
+        return (algoritmoSeleccionado == TipoAlgoritmo.PRIORIDAD
+                || algoritmoSeleccionado == TipoAlgoritmo.LOTTERY) ? 1 : 0;
+    }
+
+    /* ¿Qué hace? Revisa el rango sin cambiar las reglas de SRR. ¿Quién lo llama? La carga y la edición de prioridad. */
+    private void validarPrioridad(int prioridad) {
+        if (algoritmoSeleccionado == TipoAlgoritmo.PRIORIDAD) {
+            if (prioridad < 1 || prioridad > 10) {
+                throw new IllegalArgumentException("La prioridad debe estar entre 1 y 10.");
+            }
+        } else if (algoritmoSeleccionado == TipoAlgoritmo.LOTTERY && prioridad < 1) {
+            throw new IllegalArgumentException("Los tickets deben ser un entero mayor que cero.");
+        } else if (prioridad < 0) {
+            throw new IllegalArgumentException("La prioridad no puede ser negativa.");
+        }
+    }
+
+    /* ¿Qué hace? Indica si prioridad puede interrumpir. ¿Quién lo llama? La configuración de la interfaz. */
+    public boolean isPrioridadExpropiativa() { return prioridadExpropiativa; }
+
+    /* Cambia el modo de prioridad cuando las CPU están libres. */
+    public void configurarExpropiacionPrioridad(boolean expropia) {
+        validarPlanificacionConfigurable();
+        prioridadExpropiativa = expropia;
+        if (planificador instanceof Prioridad prioridad) prioridad.setExpropia(expropia);
+    }
+
+    public void configurarCantidadCPU(int cantidad) {
+
+        if (cantidad < 1 || cantidad > 5) {
+
+            throw new IllegalArgumentException(
+                    "Solo se permiten entre 1 y 5 CPU.");
+        }
+
+        if (tiempoSimulado != 0
+                || gestorProcesos.getListaTrabajos().stream()
+                        .anyMatch(p -> p.getHoraInicio() != null)) {
+
+            throw new IllegalStateException(
+                    "Configure las CPU antes de iniciar "
+                            + "la simulación.");
+        }
+
+        for (BCP proceso : gestorProcesos.getListaTrabajos()) {
+
+            if (proceso.getEstado() != EstadoProceso.FINALIZADO) {
+
+                proceso.setCpuAsignada(-1);
+            }
+        }
+
+        inicializarNucleos(cantidad);
+
+        for (BCP proceso : gestorProcesos.getListaTrabajos()) {
+
+            asignarSiHayCupo(proceso);
+        }
+    }
+
+    private void asignarSiHayCupo(BCP proceso) {
+
+        if (proceso.getEstado() == EstadoProceso.FINALIZADO
+                || proceso.getCpuAsignada() != -1) {
+
+            return;
+        }
+
+        for (int cpuId = 1; cpuId <= nucleos.size(); cpuId++) {
+
+            if (asignadorProcesosCPU
+                    .getCantidadProcesos(cpuId) < 5) {
+
+                asignadorProcesosCPU
+                        .asignarProceso(proceso);
+
+                return;
+            }
+        }
+
+    }
+
+    private void verificarAsignacionesCompletas() {
+
+        for (BCP proceso : gestorProcesos.getListaTrabajos()) {
+
+            if (proceso.getEstado() != EstadoProceso.FINALIZADO
+                    && proceso.getCpuAsignada() == -1) {
+
+                /* ¿Qué hace? Intenta ocupar un cupo libre antes de detener la ejecución.
+                 * ¿Quién lo llama? El controlador al comprobar las asignaciones de cada tick. */
+                asignarSiHayCupo(proceso);
+            }
+
+            if (proceso.getEstado() != EstadoProceso.FINALIZADO
+                    && proceso.getCpuAsignada() == -1) {
+
+                throw new IllegalStateException(
+                        "El proceso PID "
+                                + proceso.getPid()
+                                + " no tiene CPU asignada. "
+                                + "Configure más CPU antes de ejecutar.");
+            }
+        }
+    }
+
+    public int getQuantumRR() {
+
+        return quantumRR;
+    }
+
+    public void configurarQuantumRR(int quantum) {
+
+        if (quantum < 1) {
+
+            throw new IllegalArgumentException(
+                    "El quantum debe ser al menos 1.");
+        }
+
+        validarPlanificacionConfigurable();
+
+        quantumRR = quantum;
+
+        if (algoritmoSeleccionado == TipoAlgoritmo.RR
+                || algoritmoSeleccionado == TipoAlgoritmo.SELFISH_ROUND_ROBIN
+                || algoritmoSeleccionado == TipoAlgoritmo.LOTTERY) {
+
+            configurarAlgoritmo(algoritmoSeleccionado);
+        }
+    }
+
+    /* ¿Qué hace? Devuelve la tasa de espera de SRR. ¿Quién lo llama? Configuración para mostrarla. */
+    public int getTasaEsperaSRR() { return tasaEsperaSRR; }
+
+    /* ¿Qué hace? Devuelve la tasa de servicio de SRR. ¿Quién lo llama? Configuración para mostrarla. */
+    public int getTasaServicioSRR() { return tasaServicioSRR; }
+
+    /* Cambia las tasas de SRR cuando las CPU están libres. */
+    public void configurarTasasSRR(int espera, int servicio) {
+        if (servicio <= 0 || espera <= servicio) {
+            throw new IllegalArgumentException("Las tasas deben cumplir 0 < b < a.");
+        }
+        validarPlanificacionConfigurable();
+        tasaEsperaSRR = espera;
+        tasaServicioSRR = servicio;
+        if (algoritmoSeleccionado == TipoAlgoritmo.SELFISH_ROUND_ROBIN) {
+            configurarAlgoritmo(algoritmoSeleccionado);
+        }
+    }
+
+    private int obtenerTiempoCpuConsumido() {
+
+        int total = 0;
+
+        for (BCP proceso : gestorProcesos.getListaTrabajos()) {
+            total += proceso.getTiempoCPU();
+        }
+
+        return total;
     }
 
     public CPU getCPU() {
@@ -430,6 +1129,10 @@ public class Controlador {
 
     public Memoria getMemoria() {
         return memoria;
+    }
+
+    public GestorPaginasVirtuales getGestorPaginasVirtuales() {
+        return memoria.getEstrategia() instanceof GestorPaginasVirtuales virtual ? virtual : null;
     }
 
     public Almacenamiento getAlmacenamiento() {
@@ -442,6 +1145,12 @@ public class Controlador {
 
     public GestorMemoriaVirtual getGestorMemoriaVirtual() {
         return gestorMemoriaVirtual;
+    }
+
+    public boolean esPaginacionVirtual() {
+        return memoria.getMetodoMemoria() == MetodoAdministracionMemoria.PAGINACION
+                && memoria.getConfiguracionMemoria() instanceof ConfiguracionPaginacion paginacion
+                && paginacion.virtual();
     }
 
     public GestorInterrupciones getGestorInterrupciones() {
@@ -466,5 +1175,36 @@ public class Controlador {
 
     public int getFinSO() {
         return memoria.getFinSO();
+    }
+
+    public int getTiempoSimulado() {
+        return tiempoSimulado;
+    }
+
+    public int getCantidadCPU() {
+        return nucleos.size();
+    }
+
+    public List<ContextoNucleo> getNucleos() {
+        return Collections.unmodifiableList(nucleos);
+    }
+
+    public CPU getCPU(int numero) {
+        return obtenerNucleo(numero).getCpu();
+    }
+
+    public BCP getProcesoActual(int numero) {
+        return gestorProcesos.getProcesoActual(
+                obtenerNucleo(numero).getCpu().getId());
+    }
+
+    private ContextoNucleo obtenerNucleo(int numero) {
+
+        if (numero < 1 || numero > nucleos.size()) {
+            throw new IllegalArgumentException(
+                    "CPU inexistente: " + numero);
+        }
+
+        return nucleos.get(numero - 1);
     }
 }

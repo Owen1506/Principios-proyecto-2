@@ -1,22 +1,17 @@
 package minipc.services;
 
+import minipc.model.AlgoritmoPlanificacion;
 import minipc.model.BCP;
+import minipc.model.EstadoProceso;
 
-/**
- * Implementa el algoritmo de planificación FCFS
- * (First Come, First Served).
- *
- * Los procesos son seleccionados en el mismo orden
- * en que ingresaron a la cola de preparados.
- */
-public class FCFS {
+public class FCFS implements AlgoritmoPlanificacion {
 
     private GestorProcesos gestorProcesos;
 
     /**
      * Crea el planificador FCFS.
      *
-     * @param gestorProcesos gestor que contiene la cola de preparados
+     * gestorProcesos gestor que contiene la cola de preparados
      */
     public FCFS(GestorProcesos gestorProcesos) {
 
@@ -27,31 +22,37 @@ public class FCFS {
         this.gestorProcesos = gestorProcesos;
     }
 
-    /**
-     * Selecciona el primer proceso de la cola de preparados.
-     *
-     * El proceso no se elimina todavía de la cola. Será
-     * GestorProcesos quien lo retire cuando realmente pase
-     * al estado EJECUCION.
-     *
-     * @return siguiente proceso que debe utilizar la CPU,
-     *         o null si no existen procesos preparados
-     */
+    // selecciona el primer proceso preparado que pertenece a la CPU 1
     public BCP seleccionarSiguiente() {
 
-        if (gestorProcesos.getColaPreparados().isEmpty()) {
-            return null;
-        }
-
-        return gestorProcesos.getColaPreparados().peek();
+        return seleccionarSiguiente(1);
     }
 
-    /**
-     * Indica si existen procesos esperando por la CPU.
-     *
-     * @return true si existen procesos preparados
-     */
+    // selecciona el primer proceso preparado que pertenece a la CPU indicada
+    @Override
+    public BCP seleccionarSiguiente(int cpuId) {
+
+        for (BCP proceso : gestorProcesos.getColaPreparados()) {
+
+            if (proceso.getEstado() == EstadoProceso.PREPARADO
+                    && proceso.getCpuAsignada() == cpuId) {
+
+                return proceso;
+            }
+        }
+
+        return null;
+    }
+
+    // Comprueba si existen procesos preparados asignados a la CPU 1
     public boolean hayProcesosPreparados() {
-        return !gestorProcesos.getColaPreparados().isEmpty();
+
+        return hayProcesosPreparados(1);
+    }
+
+    // Comprueba si existen procesos preparados asignados a la CPU indicada
+    public boolean hayProcesosPreparados(int cpuId) {
+
+        return seleccionarSiguiente(cpuId) != null;
     }
 }

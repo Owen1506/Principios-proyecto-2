@@ -1,7 +1,9 @@
 package minipc.model;
 
-import java.time.LocalDateTime;
+import minipc.services.memoria.AsignacionMemoria;
+
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -44,6 +46,7 @@ public class BCP {
     private String al;
 
     // Información del programa en memoria
+    private AsignacionMemoria asignacionMemoria;
     private int inicioPrograma;
     private int finPrograma;
     private int tamañoPrograma;
@@ -61,10 +64,20 @@ public class BCP {
     private LocalDateTime horaFinal;
     private int tiempoCPU;
     private String motivoError = "";
+    private final int rafaga;
+    private int tiempoLlegada;
+    private int tiempoRestante;
+    private int tiempoInicioSimulado;
+    private int tiempoFinalSimulado;
+    private int cpuAsignada = -1;
 
-    public String getMotivoError() { return motivoError; }
+    public String getMotivoError() {
+        return motivoError;
+    }
 
-    public void setMotivoError(String motivoError) { this.motivoError = motivoError; }
+    public void setMotivoError(String motivoError) {
+        this.motivoError = motivoError;
+    }
 
     // Archivos abiertos por el proceso
     private List<String> archivosAbiertos;
@@ -103,11 +116,11 @@ public class BCP {
             case 21 -> "ARCHIVOS_ABIERTOS = " + archivosAbiertos;
             case 22 -> "ZERO_FLAG = " + zeroFlag;
             case 23 -> "MOTIVO_ERROR = " + motivoError;
+            case 24 -> "CPU_ASIGNADA = " + cpuAsignada;
             default -> throw new IllegalArgumentException("Posición de atributo del BCP inválida: " + desplazamiento);
         };
         return "PID " + pid + " | " + atributo;
     }
-
 
     /**
      * Crea un nuevo Bloque de Control de Proceso.
@@ -116,7 +129,7 @@ public class BCP {
      * ubicación en memoria principal. Esto permite crear procesos
      * que inicialmente deban permanecer en memoria virtual.
      *
-     * @param pid identificador único del proceso
+     * @param pid            identificador único del proceso
      * @param inicioPrograma dirección inicial del programa en memoria,
      *                       o -1 si aún no está cargado en RAM
      * @param tamañoPrograma cantidad de posiciones de memoria ocupadas
@@ -142,10 +155,10 @@ public class BCP {
         this.tamañoPrograma = tamañoPrograma;
 
         if (inicioPrograma == -1) {
-            this.pc = -1;
+            this.pc = 0;
             this.finPrograma = -1;
         } else {
-            this.pc = inicioPrograma;
+            this.pc = 0;
             this.finPrograma = inicioPrograma + tamañoPrograma - 1;
         }
 
@@ -172,6 +185,11 @@ public class BCP {
         this.archivosAbiertos = new ArrayList<>();
 
         this.zeroFlag = false;
+        this.rafaga = tamañoPrograma;
+        this.tiempoLlegada = 0;
+        this.tiempoRestante = rafaga;
+        this.tiempoInicioSimulado = -1;
+        this.tiempoFinalSimulado = -1;
     }
 
     public void guardarContexto(CPU cpu) {
@@ -265,24 +283,21 @@ public class BCP {
      * que ya llevaba el PC.
      *
      * Si el proceso todavía no había sido cargado en RAM
-     * (inicioPrograma = -1), comenzará desde la primera instrucción.
+     * (inicioPrograma = -1), su PC lógico ya comienza en cero.
      */
-    public void reubicarPrograma(int nuevoInicio) {
+    public void reubicarPrograma(AsignacionMemoria asignacion) {
 
-        if (nuevoInicio < 0) {
+        if (asignacion == null || asignacion.getCantidad() != tamañoPrograma) {
             throw new IllegalArgumentException("La nueva dirección inicial no es válida.");
         }
 
-        int desplazamientoPC = 0;
-
-        if (inicioPrograma >= 0 && pc >= inicioPrograma) {
-            desplazamientoPC = pc - inicioPrograma;
-        }
-
-        this.inicioPrograma = nuevoInicio;
-        this.finPrograma = nuevoInicio + tamañoPrograma - 1;
-        this.pc = nuevoInicio + desplazamientoPC;
+        this.asignacionMemoria = asignacion;
+        this.inicioPrograma = asignacion.obtenerDireccionFisica(0);
+        this.finPrograma = asignacion.obtenerDireccionFisica(tamañoPrograma - 1);
+        // El PC es lógico: cambiar de ubicación física no cambia su avance.
     }
+
+    public AsignacionMemoria getAsignacionMemoria() { return asignacionMemoria; }
 
     public int getInicioPrograma() {
         return inicioPrograma;
@@ -344,6 +359,45 @@ public class BCP {
         return tiempoCPU;
     }
 
+    public int getRafaga() {
+        return rafaga;
+    }
+
+    public int getTiempoLlegada() {
+        return tiempoLlegada;
+    }
+
+    public void setTiempoLlegada(int tiempoLlegada) {
+        if (tiempoLlegada < 0) {
+            throw new IllegalArgumentException(
+                    "El tiempo de llegada no puede ser negativo.");
+        }
+
+        this.tiempoLlegada = tiempoLlegada;
+    }
+
+    public int getTiempoRestante() {
+        return tiempoRestante;
+    }
+
+    public int getTiempoInicioSimulado() {
+        return tiempoInicioSimulado;
+    }
+
+    public int getTiempoFinalSimulado() {
+        return tiempoFinalSimulado;
+    }
+
+    public void registrarInicioSimulado(int tiempo) {
+        if (tiempoInicioSimulado == -1) {
+            tiempoInicioSimulado = tiempo;
+        }
+    }
+
+    public void registrarFinSimulado(int tiempo) {
+        tiempoFinalSimulado = tiempo;
+    }
+
     /** Tiempo real desde la primera asignación de CPU hasta la finalización. */
     public Duration getTiempoTotal() {
         if (horaInicio == null || horaFinal == null) {
@@ -354,6 +408,10 @@ public class BCP {
 
     public void incrementarTiempoCPU() {
         tiempoCPU++;
+
+        if (tiempoRestante > 0) {
+            tiempoRestante--;
+        }
     }
 
     /** Duración real final, en segundos; no confundir con los ticks de CPU. */
@@ -370,6 +428,24 @@ public class BCP {
         if (!archivosAbiertos.contains(nombreArchivo)) {
             archivosAbiertos.add(nombreArchivo);
         }
+    }
+
+
+    public int getCpuAsignada() {
+        return cpuAsignada;
+    }
+
+    public void setCpuAsignada(int cpuAsignada) {
+
+        if (cpuAsignada < -1
+                || cpuAsignada == 0
+                || cpuAsignada > 5) {
+
+            throw new IllegalArgumentException(
+                    "La CPU asignada debe estar entre 1 y 5, o ser -1.");
+        }
+
+        this.cpuAsignada = cpuAsignada;
     }
 
     public void cerrarArchivo(String nombreArchivo) {
@@ -394,6 +470,11 @@ public class BCP {
                 + "\nInicio programa=" + inicioPrograma
                 + "\nFin programa=" + finPrograma
                 + "\nTamaño programa=" + tamañoPrograma
+                + "\nRáfaga=" + rafaga
+                + "\nTiempo llegada=" + tiempoLlegada
+                + "\nTiempo restante=" + tiempoRestante
+                + "\nInicio simulado=" + tiempoInicioSimulado
+                + "\nFinal simulado=" + tiempoFinalSimulado
                 + "\nPrioridad=" + prioridad
                 + "\nDireccion BCP=" + direccionBCP
                 + "\nDireccion siguiente BCP=" + direccionSiguienteBCP
@@ -403,5 +484,6 @@ public class BCP {
                 + "\nHora final=" + horaFinal
                 + "\nDuracion real (s)=" + (horaFinal == null ? "Pendiente" : getTiempoTotalSegundos())
                 + "\nArchivos abiertos=" + archivosAbiertos;
+
     }
 }

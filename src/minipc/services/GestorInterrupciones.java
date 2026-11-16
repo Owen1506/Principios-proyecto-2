@@ -1,17 +1,18 @@
 package minipc.services;
 
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Queue;
 import minipc.model.BCP;
 import minipc.model.CPU;
 import minipc.model.Instruccion;
 
-import java.util.LinkedList;
-import java.util.Queue;
-import java.util.List;
-import java.util.ArrayList;
-
 /**
  * Administra las interrupciones generadas durante la ejecución
  * de los procesos de la Mini PC.
+ *
+ * Cada instancia pertenece a una CPU específica.
  *
  * Interrupciones soportadas:
  *
@@ -19,6 +20,9 @@ import java.util.ArrayList;
  * INT 10H -> salida en pantalla.
  * INT 20H -> finalización del proceso.
  * INT 21H -> manejo de archivos.
+ *
+ * Las interrupciones solo modifican el proceso asociado
+ * a la CPU correspondiente.
  */
 public class GestorInterrupciones {
 
@@ -28,25 +32,43 @@ public class GestorInterrupciones {
     private SistemaArchivos sistemaArchivos;
 
     private Queue<BCP> esperandoTeclado;
+
     private String ultimaSalida;
+
     private final List<String> salidas = new ArrayList<>();
 
-    public GestorInterrupciones(CPU cpu, GestorProcesos gestorProcesos, Despachador despachador, SistemaArchivos sistemaArchivos) {
+    /**
+     * Inicializa el gestor de interrupciones de una CPU.
+     *
+     * @param cpu             CPU asociada al gestor
+     * @param gestorProcesos  administrador global de procesos
+     * @param despachador     despachador de esta CPU
+     * @param sistemaArchivos administrador de archivos
+     */
+    public GestorInterrupciones(
+            CPU cpu,
+            GestorProcesos gestorProcesos,
+            Despachador despachador,
+            SistemaArchivos sistemaArchivos) {
 
         if (cpu == null) {
-            throw new IllegalArgumentException("La CPU no puede ser null.");
+            throw new IllegalArgumentException(
+                    "La CPU no puede ser null.");
         }
 
         if (gestorProcesos == null) {
-            throw new IllegalArgumentException("El gestor de procesos no puede ser null.");
+            throw new IllegalArgumentException(
+                    "El gestor de procesos no puede ser null.");
         }
 
         if (despachador == null) {
-            throw new IllegalArgumentException("El despachador no puede ser null.");
+            throw new IllegalArgumentException(
+                    "El despachador no puede ser null.");
         }
 
         if (sistemaArchivos == null) {
-            throw new IllegalArgumentException("El sistema de archivos no puede ser null.");
+            throw new IllegalArgumentException(
+                    "El sistema de archivos no puede ser null.");
         }
 
         this.cpu = cpu;
@@ -59,10 +81,11 @@ public class GestorInterrupciones {
     }
 
     /**
-     * Atiende una interrupción.
+     * Atiende una instrucción de interrupción.
      *
-     * @param instruccion instrucción INT que será atendida
-     * @return true si la interrupción modificó el flujo normal del PC
+     * @param instruccion instrucción INT
+     * @return true si la interrupción modificó el flujo
+     *         normal del PC
      */
     public boolean atender(Instruccion instruccion) {
 
@@ -87,144 +110,212 @@ public class GestorInterrupciones {
                 return false;
 
             default:
-                throw new IllegalArgumentException("Interrupción no soportada: " + servicio);
+                throw new IllegalArgumentException(
+                        "Interrupción no soportada: " + servicio);
         }
     }
 
     /**
      * INT 09H.
      *
-     * El proceso queda bloqueado esperando una entrada de teclado.
-     * Cuando el usuario presione Enter se deberá llamar al método
-     * recibirEntradaTeclado().
+     * Bloquea al proceso de esta CPU mientras espera
+     * una entrada por teclado.
+     *
+     * El siguiente proceso preparado será despachado
+     * por el controlador durante el próximo tick.
      */
     private void atenderINT09() {
 
-        BCP proceso = gestorProcesos.getProcesoActual();
+        // Obtener exclusivamente el proceso de esta CPU.
+        BCP proceso = gestorProcesos.getProcesoActual(
+                cpu.getId());
 
         if (proceso == null) {
-            throw new IllegalStateException("No existe un proceso en ejecución.");
+            throw new IllegalStateException(
+                    "No existe un proceso en ejecución en CPU "
+                            + cpu.getId());
         }
 
         /*
-         * El proceso debe continuar después de INT 09H cuando vuelva
-         * a recibir la CPU.
+         * Avanzar el PC para evitar que el proceso vuelva
+         * a ejecutar INT 09H cuando sea desbloqueado.
          */
         cpu.incrementarPC();
 
         /*
-         * Se guarda el contexto ya con el PC apuntando a la siguiente
-         * instrucción.
+         * Conservar los registros y el PC del proceso
+         * antes de retirarlo de la CPU.
          */
         despachador.guardarContextoActual();
 
+        // Registrar el proceso que espera entrada.
         esperandoTeclado.add(proceso);
 
-        gestorProcesos.bloquearProcesoActual();
+        // Bloquear únicamente el proceso de esta CPU.
+        gestorProcesos.bloquearProcesoActual(
+                cpu.getId());
 
         /*
-         * Como la CPU quedó libre, se intenta ejecutar el siguiente
-         * proceso preparado.
+         * No despachar aquí.
+         *
+         * El controlador administra los cambios de proceso
+         * y ejecutará el siguiente despacho en otro tick.
          */
-        despachador.despacharSiguiente();
     }
 
     /**
-     * Recibe el valor introducido por teclado y desbloquea
-     * al primer proceso que estaba esperando entrada.
+     * Recibe una entrada y desbloquea al primer proceso
+     * que estaba esperando teclado en esta CPU.
      *
-     * @param entrada texto introducido por el usuario
-     * @return proceso que recibió la entrada
+     * @param entrada valor introducido por el usuario
+     * @return BCP del proceso desbloqueado
      */
     public BCP recibirEntradaTeclado(String entrada) {
 
         if (esperandoTeclado.isEmpty()) {
-            throw new IllegalStateException("No existe ningún proceso esperando entrada de teclado.");
+            throw new IllegalStateException(
+                    "No existen procesos esperando entrada de teclado.");
         }
 
         int valor;
 
         try {
             valor = Integer.parseInt(entrada.trim());
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("La entrada debe ser un número entero.");
+
+        } catch (NumberFormatException error) {
+            throw new IllegalArgumentException(
+                    "La entrada debe ser un número entero.");
         }
 
         if (valor < 0 || valor > 255) {
-            throw new IllegalArgumentException("La entrada debe estar entre 0 y 255.");
+            throw new IllegalArgumentException(
+                    "La entrada debe estar entre 0 y 255.");
         }
 
+        // Recuperar el proceso que esperaba entrada.
         BCP proceso = esperandoTeclado.poll();
 
+        // Guardar el dato introducido.
         proceso.setDX(String.valueOf(valor));
 
+        // Devolver el proceso a preparados.
         gestorProcesos.desbloquearProceso(proceso);
 
-        if (gestorProcesos.getProcesoActual() == null) {
-            despachador.despacharSiguiente();
-        }
-
+        /*
+         * No ejecutar un despacho inmediato.
+         *
+         * El proceso mantiene su CPU asignada y será
+         * seleccionado por su planificador correspondiente.
+         */
         return proceso;
     }
 
     /**
      * INT 10H.
      *
-     * Copia el contenido de DX como la última salida generada
-     * por la Mini PC.
+     * Registra el contenido del registro DX como salida
+     * producida por esta CPU.
      */
     private void atenderINT10() {
+
         ultimaSalida = cpu.getRegistros().getDX();
+
         salidas.add(ultimaSalida);
     }
 
     /**
      * INT 20H.
      *
-     * Finaliza el proceso actual y entrega la CPU al siguiente
-     * proceso preparado, si existe.
+     * Finaliza únicamente el proceso que está utilizando
+     * esta CPU.
+     *
+     * La CPU queda disponible para que el controlador
+     * asigne otro proceso durante un tick posterior.
      */
     private void atenderINT20() {
 
-        if (gestorProcesos.getProcesoActual() == null) {
-            throw new IllegalStateException("No existe un proceso en ejecución.");
+        BCP proceso = gestorProcesos.getProcesoActual(
+                cpu.getId());
+
+        if (proceso == null) {
+            throw new IllegalStateException(
+                    "No existe un proceso en ejecución en CPU "
+                            + cpu.getId());
         }
 
+        // Conservar el contexto final.
         despachador.guardarContextoActual();
-        gestorProcesos.finalizarProcesoActual();
-        despachador.despacharSiguiente();
+
+        // Finalizar el proceso asociado a esta CPU.
+        gestorProcesos.finalizarProcesoActual(
+                cpu.getId());
+
+        /*
+         * No llamar a despacharSiguiente().
+         *
+         * El controlador hará el cambio de proceso
+         * cuando corresponda.
+         */
     }
 
     /**
      * INT 21H.
      *
-     * Ejecuta el servicio de archivos indicado en AH.
+     * Ejecuta el servicio de archivos utilizando los
+     * registros y el BCP de la CPU correspondiente.
      */
     private void atenderINT21() {
 
-        BCP proceso = gestorProcesos.getProcesoActual();
+        // Obtener el proceso de esta CPU.
+        BCP proceso = gestorProcesos.getProcesoActual(
+                cpu.getId());
 
         if (proceso == null) {
-            throw new IllegalStateException("No existe un proceso en ejecución.");
+            throw new IllegalStateException(
+                    "No existe un proceso en ejecución en CPU "
+                            + cpu.getId());
         }
 
+        // Ejecutar el servicio sobre el proceso correcto.
         sistemaArchivos.ejecutarServicio(cpu, proceso);
     }
 
+    /**
+     * Retorna la última salida generada por esta CPU.
+     *
+     * @return último mensaje
+     */
     public String getUltimaSalida() {
         return ultimaSalida;
     }
 
+    /**
+     * Reinicia los registros de interrupciones.
+     */
     public void reiniciar() {
+
         salidas.clear();
+
         esperandoTeclado.clear();
+
         ultimaSalida = "";
     }
 
+    /**
+     * Comprueba si existen procesos esperando teclado
+     * en esta CPU.
+     *
+     * @return true si existe al menos uno
+     */
     public boolean hayProcesoEsperandoTeclado() {
         return !esperandoTeclado.isEmpty();
     }
 
+    /**
+     * Obtiene las salidas producidas por esta CPU.
+     *
+     * @return copia de los mensajes registrados
+     */
     public List<String> getSalidas() {
         return new ArrayList<>(salidas);
     }
