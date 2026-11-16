@@ -34,7 +34,7 @@ public class Prioridad implements AlgoritmoPlanificacion {
     /*
      * ¿Qué hace? Activa o desactiva la expropiación. Si queda en false, el
      * proceso actual termina su ciclo sin ser interrumpido.
-     * ¿Quién lo llama? Las pruebas o quien quiera comparar las dos variantes.
+     * ¿Quién lo llama? El código que necesite comparar las dos variantes.
      */
     public void setExpropia(boolean expropia) {
         this.expropia = expropia;
@@ -42,7 +42,7 @@ public class Prioridad implements AlgoritmoPlanificacion {
 
     /*
      * ¿Qué hace? Informa si la expropiación está activa.
-     * ¿Quién lo llama? Las pruebas y la interfaz si necesita mostrar el modo.
+     * ¿Quién lo llama? La interfaz si necesita mostrar el modo.
      */
     public boolean isExpropia() {
         return expropia;

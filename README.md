@@ -45,7 +45,6 @@ estadísticas de ejecución.
 | Valoración del proyecto | ✅ Logrado |
 | Video de la aplicación | ⚠️ Pendiente de verificación |
 | Verificación integral desde la interfaz | ⚠️ Pendiente |
-| Pruebas completas de archivos y estados | ⚠️ Pendiente |
 
 ## Características principales
 
@@ -218,42 +217,16 @@ src/minipc/
 │       └── seleccion/ Políticas de selección compartidas
 └── ui/               Interfaz gráfica Swing
 
-tests/                Pruebas sin dependencias externas
-codigo/               Programas ASM de prueba
+codigo/               Programas ASM de ejemplo
 config/               Archivo de configuración por defecto
 ```
 
 ---
 
-## Pruebas
 
-El proyecto incluye pruebas ejecutables sin dependencias externas en la carpeta `tests/`:
+## Programas de ejemplo
 
-- `PruebaHuecos.java` — huecos, fusión y First Fit.
-- `PruebaEstrategiasMemoria.java` — Next Fit, Best Fit y configuración.
-- `PruebaParticionesFijas.java` — particiones fijas, fragmentación, reutilización e intercambio.
-- `PruebaAlmacenamientoPaginas.java` — respaldo por páginas, reversión y liberación.
-- `PruebaPaginasVirtuales.java` — fallos, FIFO, recarga y liberación.
-
-Compilación desde PowerShell:
-
-```powershell
-$clases = Join-Path $env:TEMP 'minipc-classes'
-$fuentes = @(Get-ChildItem src,tests -Recurse -Filter *.java | ForEach-Object { $_.FullName })
-javac -encoding UTF-8 -d $clases @fuentes
-```
-
-Ejecución de una prueba:
-
-```powershell
-java -cp $clases PruebaPaginasVirtuales
-```
-
----
-
-## Programas de prueba
-
-La carpeta [`codigo`](codigo) contiene programas ASM para probar la aplicación. Incluye `GUIA_PRUEBAS_RAM.md` con instrucciones para comparar las estrategias de asignación de memoria.
+La carpeta [`codigo`](codigo) contiene programas ASM de ejemplo para ejecutar en la aplicación.
 
 ---
 
@@ -265,7 +238,7 @@ La carpeta [`codigo`](codigo) contiene programas ASM para probar la aplicación.
 
 ## Video de la aplicación en ejecución
 
-**Enlace de YouTube:** https://www.youtube.com/watch?v=ljSP0X_8USQ
+**Enlace de YouTube:** https://www.youtube.com/watch?v=bYZZJPCoGnw
 
 ---
 

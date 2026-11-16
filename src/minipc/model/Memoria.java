@@ -54,7 +54,7 @@ public class Memoria {
 
     /*
      * Crea la memoria con la estrategia pedida por la configuración.
-     * Se conserva para las pruebas y para el código que todavía trabaja
+     * Se conserva para el código que todavía trabaja
      * directamente con TipoEstrategiaMemoria.
      */
     public Memoria(int size, int inicioUsuario, TipoEstrategiaMemoria tipo) {
@@ -84,7 +84,7 @@ public class Memoria {
     }
 
     /*
-     * Conserva la inyección directa de una estrategia para pruebas o
+     * Conserva la inyección directa de una estrategia para personalizaciones o
      * extensiones. La llama cualquier código que ya construya su propia
      * estrategia.
      */
