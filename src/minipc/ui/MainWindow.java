@@ -224,16 +224,6 @@ public class MainWindow extends JFrame {
 
     private final JTextArea pantalla = texto();
 
-    private final JTextArea estadisticas = texto();
-    private final DefaultTableModel modeloInforme = modelo(
-            "PID", "Programa", "CPU", "Llegada", "Inicio", "Finalización",
-            "Tiempo de CPU", "Retorno", "Retorno/servicio", "Resultado",
-            "Servicio contabilizado", "Cuota justa acumulada", "Servicio/cuota justa");
-    private final DefaultTableModel modeloComparacion = modelo(
-            "#", "Algoritmo y opciones", "CPU", "RAM", "Disco", "Procesos",
-            "Tiempo", "Ocio total", "Retorno promedio", "Retorno/servicio promedio", "Carga");
-    private final JTable tablaInforme = new JTable(modeloInforme);
-    private final JTable tablaComparacion = new JTable(modeloComparacion);
     private final List<InformeEjecucion> informesGuardados = new ArrayList<>();
     private final java.util.Set<String> planificacionesUsadas = new java.util.LinkedHashSet<>();
     private int ultimoTiempoRegistrado = -1;
@@ -271,9 +261,7 @@ public class MainWindow extends JFrame {
 
             if ((fila != FILA_LLEGADA && fila != FILA_PRIORIDAD)
                     || columna <= 0
-                    || controlador == null
-                    || controlador.getTiempoSimulado() != 0
-                    || continuarAutomatico) {
+                    || controlador == null) {
                 return false;
             }
 
@@ -288,7 +276,7 @@ public class MainWindow extends JFrame {
                 return false;
             }
 
-            // La llegada y la prioridad se editan antes del primer tick.
+            // Los demás procesos y el reloj global no limitan la edición de un NUEVO.
             return proceso.getEstado() == EstadoProceso.NUEVO;
         }
 
@@ -1590,9 +1578,7 @@ public class MainWindow extends JFrame {
         JPanel inferior = new JPanel(new BorderLayout(5, 0));
         inferior.setOpaque(false);
 
-        boolean editable = controlador.getTiempoSimulado() == 0
-                && proceso.getEstado() == EstadoProceso.NUEVO
-                && !continuarAutomatico;
+        boolean editable = proceso.getEstado() == EstadoProceso.NUEVO;
 
         boolean usaPrioridad = usaPrioridad();
         JPanel datosEdicion = new JPanel(new GridLayout(usaPrioridad ? 2 : 1, 1, 0, 3));
@@ -1601,7 +1587,7 @@ public class MainWindow extends JFrame {
         if (editable) {
             JSpinner llegada = new JSpinner(new SpinnerNumberModel(
                     proceso.getTiempoLlegada(), 0, 100000, 1));
-            llegada.setToolTipText("Editar llegada de este proceso");
+            llegada.setToolTipText("Editar llegada mientras el proceso esté NUEVO");
             llegada.setPreferredSize(new Dimension(90, 29));
             llegada.addChangeListener(e -> {
                 try {
@@ -2096,43 +2082,24 @@ public class MainWindow extends JFrame {
         return pestanas;
     }
 
-    /* Abre el informe en una ventana amplia sin detener la simulación. La llama el botón Estadísticas. */
+    /* Abre la tabla de estadísticas sin detener la simulación. */
     private void mostrarEstadisticas() {
         if (ventanaEstadisticas == null) {
-            ventanaEstadisticas = new JDialog(this, "Estadísticas y comparación", false);
+            ventanaEstadisticas = new JDialog(this, "Estadísticas", false);
             ventanaEstadisticas.setDefaultCloseOperation(JDialog.HIDE_ON_CLOSE);
             ventanaEstadisticas.setContentPane(crearPanelEstadisticas());
-            ventanaEstadisticas.setMinimumSize(new Dimension(700, 450));
-            ventanaEstadisticas.setSize(1120, 720);
+            ventanaEstadisticas.setMinimumSize(new Dimension(560, 340));
+            ventanaEstadisticas.setSize(980, 355);
             ventanaEstadisticas.setLocationRelativeTo(this);
         }
         ventanaEstadisticas.setVisible(true);
         ventanaEstadisticas.toFront();
     }
 
-    /* Organiza el informe actual, las comparaciones y el contexto. La llama mostrarEstadisticas. */
+    /* La ventana contiene únicamente la tabla comparativa de ejecuciones. */
     private JPanel crearPanelEstadisticas() {
-        panelEstadisticas = new PanelEstadisticas(tablaInforme, tablaComparacion,
-                estadisticas, informesGuardados, this::guardarResultadoManual);
-        if (controlador != null) panelEstadisticas.actualizar(informeActual());
+        panelEstadisticas = new PanelEstadisticas(informesGuardados);
         return panelEstadisticas;
-    }
-
-    /* Guarda una ejecución finalizada sin duplicar la fotografía. Lo llama PanelEstadisticas. */
-    private void guardarResultadoManual() {
-        if (controlador == null || !controlador.simulacionFinalizada()
-                || controlador.getTiempoSimulado() <= 0
-                || controlador.getGestorProcesos().getListaTrabajos().isEmpty()) {
-            JOptionPane.showMessageDialog(ventanaEstadisticas,
-                    "Espera a que finalicen todos los procesos para guardar el resultado.");
-            return;
-        }
-        int antes = informesGuardados.size();
-        actualizarInforme();
-        JOptionPane.showMessageDialog(ventanaEstadisticas,
-                informesGuardados.size() > antes
-                        ? "Resultado guardado. Ya está disponible en Comparar."
-                        : "Esta ejecución ya estaba guardada en Comparar.");
     }
 
     private JPanel crearPanelTabla(
@@ -2175,56 +2142,22 @@ public class MainWindow extends JFrame {
         return InformeEjecucion.capturar(controlador, nombres, politicas);
     }
 
-    /* Refresca la vista actual sin alterar los informes guardados. La llama MainWindow.actualizar. */
+    /* Registra automáticamente cada ejecución finalizada, sin duplicarla al refrescar. */
     private void actualizarInforme() {
-        if (controlador == null) return;
-        InformeEjecucion informe = informeActual();
-        int filaSeleccionada = tablaInforme.getSelectedRow();
-        Integer pidSeleccionadoInforme = filaSeleccionada < 0 ? null
-                : (Integer) modeloInforme.getValueAt(tablaInforme.convertRowIndexToModel(filaSeleccionada), 0);
-        modeloInforme.setRowCount(0);
-        for (InformeEjecucion.Proceso p : informe.procesos) {
-            modeloInforme.addRow(new Object[] {
-                    p.pid(), p.nombre(), p.cpu() < 1 ? null : p.cpu(), p.llegada(),
-                    p.inicio() < 0 ? null : p.inicio(), p.fin() < 0 ? null : p.fin(),
-                    p.servicio(), p.estancia(), p.proporcion(),
-                    p.resultado(), p.servicioGarantizado(), p.parteJusta(), p.relacionGarantizada()
-            });
-        }
-        if (!informe.procesos.isEmpty() && controlador.simulacionFinalizada()
-                && informe.tiempo > 0
-                && (informe.tiempo != ultimoTiempoRegistrado
-                        || informe.procesos.size() != ultimaCantidadRegistrada)) {
-            ultimoTiempoRegistrado = informe.tiempo;
-            ultimaCantidadRegistrada = informe.procesos.size();
-            guardarResultado(informe);
-        }
-        if (pidSeleccionadoInforme != null) {
-            for (int i = 0; i < modeloInforme.getRowCount(); i++) {
-                if (pidSeleccionadoInforme.equals(modeloInforme.getValueAt(i, 0))) {
-                    int vista = tablaInforme.convertRowIndexToView(i);
-                    if (vista >= 0) tablaInforme.setRowSelectionInterval(vista, vista);
-                    break;
-                }
-            }
-        }
-        if (panelEstadisticas != null) panelEstadisticas.actualizar(informe);
+        if (controlador == null || !controlador.simulacionFinalizada()
+                || controlador.getTiempoSimulado() <= 0
+                || controlador.getGestorProcesos().getListaTrabajos().isEmpty()) return;
+        int tiempo = controlador.getTiempoSimulado();
+        int cantidad = controlador.getGestorProcesos().getListaTrabajos().size();
+        if (tiempo == ultimoTiempoRegistrado && cantidad == ultimaCantidadRegistrada) return;
+        ultimoTiempoRegistrado = tiempo;
+        ultimaCantidadRegistrada = cantidad;
+        guardarResultado(informeActual());
     }
 
     /* Conserva una fotografía de cada ejecución finalizada. La llama actualizarInforme. */
     private void guardarResultado(InformeEjecucion informe) {
         informesGuardados.add(informe);
-        int ocio = informe.cpus.stream().mapToInt(InformeEjecucion.UsoCPU::ocioso).sum();
-        String comparabilidad = informesGuardados.size() == 1 ? "Referencia"
-                : !informe.cargaVerificable || !informesGuardados.get(0).cargaVerificable ? "No verificada"
-                : informe.firmaCarga.equals(informesGuardados.get(0).firmaCarga) ? "Misma carga" : "Distinta";
-        modeloComparacion.addRow(new Object[] { informesGuardados.size(), informe.algoritmos,
-                informe.cpus.size(), informe.ram, informe.disco, informe.procesos.size(), informe.tiempo,
-                ocio, InformeEjecucion.numero(informe.estanciaMedia),
-                InformeEjecucion.numero(informe.proporcionMedia), comparabilidad });
-        int fila = modeloComparacion.getRowCount() - 1;
-        int vista = tablaComparacion.convertRowIndexToView(fila);
-        if (vista >= 0) tablaComparacion.setRowSelectionInterval(vista, vista);
         if (panelEstadisticas != null) panelEstadisticas.actualizarHistorial();
     }
 
@@ -3026,8 +2959,6 @@ public class MainWindow extends JFrame {
                     ? etiquetaPrioridad() + " \u270E" : campo });
         }
 
-        StringBuilder resumenEstadisticas = new StringBuilder();
-
         for (BCP p : controlador.getGestorProcesos()
                 .getListaTrabajos()) {
 
@@ -3057,71 +2988,6 @@ public class MainWindow extends JFrame {
                     Integer.toString(p.getPrioridad()),
                     Integer.toString(p.getTiempoRestante())
             });
-
-            resumenEstadisticas
-                    .append("PROCESO PID ")
-                    .append(p.getPid())
-                    .append(" · ")
-                    .append(nombres.getOrDefault(
-                            p.getPid(), ""))
-                    .append(" · CPU ")
-                    .append(p.getCpuAsignada() < 1
-                            ? "sin asignar"
-                            : Integer.toString(p.getCpuAsignada()))
-                    .append("\n────────────────────────────\n")
-                    .append("Estado: ")
-                    .append(p.getEstado())
-                    .append("\nResultado: ")
-                    .append(
-                            !p.getMotivoError().isEmpty()
-                                    ? "Error: "
-                                            + p.getMotivoError()
-                                    : p.getHoraFinal() == null
-                                            ? "Pendiente"
-                                            : "Finalización normal")
-                    .append("\nInicio: ")
-                    .append(hora(p.getHoraInicio()))
-                    .append("\nFin: ")
-                    .append(hora(p.getHoraFinal()))
-                    .append("\nDuración real: ")
-                    .append(
-                            p.getHoraFinal() == null
-                                    ? "Pendiente"
-                                    : String.format(
-                                            java.util.Locale.ROOT,
-                                            "%.3f s",
-                                            p.getTiempoTotalSegundos()))
-                    .append("\nTiempo de CPU: ")
-                    .append(p.getTiempoCPU())
-                    .append(" ticks")
-                    .append("\n\nContexto ")
-                    .append(
-                            p.getHoraFinal() == null
-                                    ? "actual"
-                                    : "final")
-                    .append("\nPC: ")
-                    .append(p.getPC())
-                    .append("\nIR: ")
-                    .append(p.getIR())
-                    .append("\nAC: ")
-                    .append(p.getAC())
-                    .append("\nAX: ")
-                    .append(p.getAX())
-                    .append("\nBX: ")
-                    .append(p.getBX())
-                    .append("\nCX: ")
-                    .append(p.getCX())
-                    .append("\nDX: ")
-                    .append(p.getDX())
-                    .append("\nAH: ")
-                    .append(p.getAH())
-                    .append("\nAL: ")
-                    .append(p.getAL())
-                    .append("\nZF: ")
-                    .append(p.isZeroFlag())
-                    .append("\nPila: ")
-                    .append(p.getPila())
-                    .append("\n\n\n");
 
         }
 
@@ -3157,25 +3023,6 @@ public class MainWindow extends JFrame {
         actualizarInforme();
         actualizarCronograma();
         actualizarTarjetasProcesos();
-
-        String contenidoEstadisticas = resumenEstadisticas.length() == 0
-                ? "Todavía no hay procesos cargados."
-                : resumenEstadisticas.toString();
-
-        if (!estadisticas.getText()
-                .equals(contenidoEstadisticas)) {
-
-            int posicion = estadisticas.getCaretPosition();
-
-            estadisticas.setText(
-                    contenidoEstadisticas);
-
-            estadisticas.setCaretPosition(
-                    Math.min(
-                            posicion,
-                            estadisticas.getDocument()
-                                    .getLength()));
-        }
 
         // =====================================================
         // RAM
@@ -3984,9 +3831,10 @@ public class MainWindow extends JFrame {
                             ? Font.BOLD : Font.PLAIN));
 
             setToolTipText(row == FILA_LLEGADA
-                    ? "Doble clic para editar la llegada antes de iniciar"
+                    ? "Doble clic para editar la llegada mientras el proceso esté NUEVO"
                     : row == FILA_PRIORIDAD
-                            ? "Doble clic para editar " + etiquetaPrioridad().toLowerCase() + " antes de iniciar"
+                            ? "Doble clic para editar " + etiquetaPrioridad().toLowerCase()
+                                    + " mientras el proceso esté NUEVO"
                             : "Proceso " + table.getValueAt(FILA_PID, column)
                                     + " asignado a " + cpuTexto);
 

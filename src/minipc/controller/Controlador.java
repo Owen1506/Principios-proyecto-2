@@ -927,26 +927,25 @@ public class Controlador {
                     "El tiempo de llegada no puede ser negativo.");
         }
 
-        BCP proceso = gestorProcesos.buscarProceso(pid);
-
-        if (proceso == null) {
-            throw new IllegalArgumentException(
-                    "No existe el proceso " + pid);
-        }
-
+        BCP proceso = obtenerProcesoNuevoEditable(pid);
         proceso.setTiempoLlegada(llegada);
     }
 
     /*
-     * ¿Qué hace? Cambia la prioridad de un proceso antes de que empiece a
-     * ejecutarse. Usa las mismas reglas que el tiempo de llegada: entero
-     * del rango permitido para el algoritmo y el proceso debe existir.
+     * ¿Qué hace? Cambia la prioridad o los tickets mientras el proceso siga
+     * NUEVO, aunque la simulación ya esté ejecutando otros procesos.
      * ¿Quién lo llama? La tabla y las tarjetas de procesos de MainWindow.
      */
     public void configurarPrioridad(int pid, int prioridad) {
 
         validarPrioridad(prioridad);
 
+        BCP proceso = obtenerProcesoNuevoEditable(pid);
+        proceso.setPrioridad(prioridad);
+    }
+
+    /* La edición depende exclusivamente del estado del proceso que se modifica. */
+    private BCP obtenerProcesoNuevoEditable(int pid) {
         BCP proceso = gestorProcesos.buscarProceso(pid);
 
         if (proceso == null) {
@@ -954,10 +953,11 @@ public class Controlador {
                     "No existe el proceso " + pid);
         }
 
-        if (tiempoSimulado != 0 || proceso.getEstado() != EstadoProceso.NUEVO) {
-            throw new IllegalStateException("La prioridad solo se modifica antes de iniciar y en estado NUEVO.");
+        if (proceso.getEstado() != EstadoProceso.NUEVO) {
+            throw new IllegalStateException(
+                    "Los atributos solo se pueden modificar mientras el proceso esté en estado NUEVO.");
         }
-        proceso.setPrioridad(prioridad);
+        return proceso;
     }
 
     /* ¿Qué hace? Escoge el valor inicial adecuado. ¿Quién lo llama? Las cargas sin prioridad explícita. */
